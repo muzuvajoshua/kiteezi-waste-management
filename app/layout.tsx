@@ -1,15 +1,10 @@
 "use client";
 
-import localFont from "next/font/local";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Toaster } from "react-hot-toast";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import Header from "@/components/Header";
-
-//header
-
-//sidebar
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -19,7 +14,6 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [totalEarnings, setTotalEarnings] = useState(0);
 
   return (
     <html lang="en">
@@ -28,7 +22,6 @@ export default function RootLayout({
           {/* header */}
           <Header
             onMenuClick={() => setSidebarOpen(!sidebarOpen)}
-            totalEarnings={totalEarnings}
           />
           <div className="flex flex-1">
             {/* sidebar */}
