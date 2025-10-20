@@ -61,7 +61,7 @@ const clientId = process.env.NEXT_PUBLIC_WEB3_AUTH_CLIENT_ID || "";
 const chainConfig = {
   chainNamespace: CHAIN_NAMESPACES.EIP155,
   chainId: "0xaa36a7",
-  rpcTarget: "https://rpc.ankr.com/eth_sepolia",
+  rpcTarget: process.env.NEXT_PUBLIC_RPC_URL || "https://rpc.ankr.com/eth_sepolia",
   displayName: "Sepolia Testnet",
   blockExplorerURL: "https://sepolia.etherscan.io",
   ticker: "ETH",
@@ -75,7 +75,7 @@ const privateKeyProvider = new EthereumPrivateKeyProvider({
 
 const web3Auth = new Web3Auth({
   clientId,
-  web3AuthNetwork: WEB3AUTH_NETWORK.TESTNET,
+  web3AuthNetwork: WEB3AUTH_NETWORK.SAPPHIRE_DEVNET,
   privateKeyProvider,
 });
 
@@ -87,6 +87,8 @@ interface HeaderProps {
 export default function Header({ onMenuClick }: HeaderProps) {
   const [loggedIn, setLoggedIn] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [isWeb3AuthReady, setIsWeb3AuthReady] = useState(false);
+  const [initError, setInitError] = useState<string | null>(null);
   const [userInfor, setUserInfor] = useState<UserInfo | null>(null);
   const [notification, setNotification] = useState<NotificationItem[]>([]);
   const [balance, setBalance] = useState(0);
@@ -95,6 +97,7 @@ export default function Header({ onMenuClick }: HeaderProps) {
     const init = async () => {
       try {
         await web3Auth.initModal();
+        setIsWeb3AuthReady(true);
 
         if (web3Auth.connected) {
           setLoggedIn(true);
@@ -112,6 +115,9 @@ export default function Header({ onMenuClick }: HeaderProps) {
         }
       } catch (error) {
         console.error("Error initialising Web3Auth", error);
+        setInitError(
+          "Failed to initialize Web3Auth. Please ensure your domain is whitelisted in the Web3Auth dashboard."
+        );
       } finally {
         setLoading(false);
       }
@@ -165,6 +171,10 @@ export default function Header({ onMenuClick }: HeaderProps) {
   const login = async () => {
     if (!web3Auth) {
       console.error("Web3Auth not initialised");
+      return;
+    }
+    if (!isWeb3AuthReady) {
+      console.error("Web3Auth modal not ready yet. Please wait for initialization to complete.");
       return;
     }
     try {
@@ -295,8 +305,12 @@ export default function Header({ onMenuClick }: HeaderProps) {
             </span>
           </div>
           {!loggedIn ? (
-            <Button onClick={login} className="bg-green-600 hover:bg-green-700 text-white text-sm md:text-base">
-              Login
+            <Button
+              onClick={login}
+              disabled={!isWeb3AuthReady}
+              className="bg-green-600 hover:bg-green-700 text-white text-sm md:text-base disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isWeb3AuthReady ? "Login" : "Initializing..."}
               <LogIn className="ml-1 md:ml-2 h-4 w-4 md:h-5 md:w-5" />
             </Button>
           ) : (
