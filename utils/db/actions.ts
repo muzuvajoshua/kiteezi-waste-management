@@ -1,5 +1,6 @@
 import { db } from './dbConfig';
 import { Users, Reports, Rewards, CollectedWastes, Notifications, Transactions } from './schema';
+import type { ReportStatus, WasteType, NotificationType } from './schema';
 import { eq, sql, and, desc } from 'drizzle-orm';
 
 export async function createUser(email: string, name: string) {
@@ -31,7 +32,7 @@ interface VerificationResult {
 export async function createReport(
   userId: number,
   location: string,
-  wasteType: string,
+  wasteType: WasteType,
   amount: string,
   imageUrl?: string,
   type?: string,
@@ -147,7 +148,7 @@ export async function getCollectedWastesByCollector(collectorId: number) {
   }
 }
 
-export async function createNotification(userId: number, message: string, type: string) {
+export async function createNotification(userId: number, message: string, type: NotificationType) {
   try {
     const [notification] = await db
       .insert(Notifications)
@@ -192,7 +193,7 @@ export async function getPendingReports() {
   }
 }
 
-export async function updateReportStatus(reportId: number, status: string) {
+export async function updateReportStatus(reportId: number, status: ReportStatus) {
   try {
     const [updatedReport] = await db
       .update(Reports)
@@ -291,9 +292,9 @@ export async function saveCollectedWaste(reportId: number, collectorId: number) 
   }
 }
 
-export async function updateTaskStatus(reportId: number, newStatus: string, collectorId?: number) {
+export async function updateTaskStatus(reportId: number, newStatus: ReportStatus, collectorId?: number) {
   try {
-    const updateData: { status: string; collector_id?: number } = { status: newStatus };
+    const updateData: { status: ReportStatus; collector_id?: number } = { status: newStatus };
     if (collectorId !== undefined) {
       updateData.collector_id = collectorId;
     }
