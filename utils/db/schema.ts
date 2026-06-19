@@ -1,4 +1,37 @@
-import {integer, varchar, pgTable,serial,text, jsonb, timestamp,boolean, PgUpdateBase} from 'drizzle-orm/pg-core';
+import {integer, varchar, pgTable,serial,text, jsonb, timestamp,boolean, index, pgEnum} from 'drizzle-orm/pg-core';
+
+// ---------------------------------------------------------------------------
+// Enums (KWM-015) — replace free-text status/type columns with constrained
+// Postgres enum types. Values for transaction_kind / collected_waste_status
+// match the strings currently produced by utils/db/actions.ts so the
+// conversion migration is non-destructive; KWM-011 introduces the canonical
+// point-transaction model separately.
+// ---------------------------------------------------------------------------
+export const reportStatusEnum = pgEnum('report_status', [
+  'pending', 'approved', 'in_progress', 'collected', 'verified', 'rejected',
+]);
+
+export const wasteTypeEnum = pgEnum('waste_type', [
+  'general', 'plastic', 'organic', 'metal', 'paper', 'ewaste', 'hazardous', 'other',
+]);
+
+export const notificationTypeEnum = pgEnum('notification_type', [
+  'reward', 'report_update', 'collection', 'system',
+]);
+
+export const transactionKindEnum = pgEnum('transaction_kind', [
+  'earned_report', 'earned_collect', 'redeemed',
+]);
+
+export const collectedWasteStatusEnum = pgEnum('collected_waste_status', [
+  'collected', 'verified',
+]);
+
+export type ReportStatus = (typeof reportStatusEnum.enumValues)[number];
+export type WasteType = (typeof wasteTypeEnum.enumValues)[number];
+export type NotificationType = (typeof notificationTypeEnum.enumValues)[number];
+export type TransactionKind = (typeof transactionKindEnum.enumValues)[number];
+export type CollectedWasteStatus = (typeof collectedWasteStatusEnum.enumValues)[number];
 
 
 export const Users = pgTable('users', {
@@ -12,14 +45,19 @@ export const Reports = pgTable('reports', {
     id: serial('id').primaryKey(),
     user_id: integer('user_id').notNull().references(() =>Users.id),
     location: text('location').notNull(),
-    wasteType: varchar('waste_type', {length:255}).notNull(),
+    wasteType: wasteTypeEnum('waste_type').notNull(),
     amount: varchar('amount', {length:255}).notNull(),
     imageUrl: text('image_url'),
     verificationResult: jsonb('verification_result'),
-    status: varchar('status',{length:255}).notNull().default('pending'),
+    status: reportStatusEnum('status').notNull().default('pending'),
     created_at: timestamp('created_at').defaultNow().notNull(),
     collector_id: integer('collector_id').references(() =>Users.id),
-});
+}, (table) => ({
+    userIdIdx: index('reports_user_id_idx').on(table.user_id),
+    statusIdx: index('reports_status_idx').on(table.status),
+    collectorIdIdx: index('reports_collector_id_idx').on(table.collector_id),
+    createdAtIdx: index('reports_created_at_idx').on(table.created_at),
+}));
 
 export const Rewards = pgTable('rewards', {
     id: serial('id').primaryKey(),
@@ -38,23 +76,46 @@ export const CollectedWastes = pgTable('collected_wastes', {
     reportId:integer('report_id').notNull().references(() =>Reports.id),
     collectorId: integer('collector_id').notNull().references(() =>Users.id),
     collectionDate: timestamp('collection_date').defaultNow().notNull(),
-    status: varchar('status',{length:255}).notNull().default('collected'),
-});
+    status: collectedWasteStatusEnum('status').notNull().default('collected'),
+}, (table) => ({
+    reportIdIdx: index('collected_wastes_report_id_idx').on(table.reportId),
+    collectorIdIdx: index('collected_wastes_collector_id_idx').on(table.collectorId),
+}));
 
 export const Notifications = pgTable('notifications', {
     id: serial('id').primaryKey(),
     userId: integer('user_id').notNull().references(() =>Users.id),
     message: text('message').notNull(),
-    type: varchar('type',{length:50}).notNull(),
+    type: notificationTypeEnum('type').notNull(),
     isRead: boolean('is_read').notNull().default(false),
     createdAt: timestamp('created_at').defaultNow().notNull(),
-});
+}, (table) => ({
+    userIdIsReadIdx: index('notifications_user_id_is_read_idx').on(table.userId, table.isRead),
+}));
 
 export const Transactions = pgTable('transactions', {
     id: serial('id').primaryKey(),
     userId: integer('user_id').notNull().references(() =>Users.id),
     amount: integer('amount').notNull(),
-    type: varchar('type',{length:20}).notNull(),
+    type: transactionKindEnum('type').notNull(),
     description: text('description'),
     date: timestamp('date').defaultNow().notNull(),
-});
+}, (table) => ({
+    userIdDateIdx: index('transactions_user_id_date_idx').on(table.userId, table.date),
+}));
+
+// audit_log (KWM-016) — append-only record of privileged mutations. actor is
+// nullable so system / unauthenticated actions can still be recorded; before /
+// after hold the entity snapshots around the change.
+export const AuditLog = pgTable('audit_log', {
+    id: serial('id').primaryKey(),
+    actorUserId: integer('actor_user_id').references(() => Users.id),
+    action: varchar('action', {length: 100}).notNull(),
+    target: varchar('target', {length: 255}).notNull(),
+    before: jsonb('before'),
+    after: jsonb('after'),
+    requestId: text('request_id'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (table) => ({
+    actorCreatedAtIdx: index('audit_log_actor_user_id_created_at_idx').on(table.actorUserId, table.createdAt),
+}));
