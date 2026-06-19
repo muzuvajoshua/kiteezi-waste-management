@@ -1,3 +1,5 @@
+"use server";
+
 import { db } from './dbConfig';
 import { Users, Reports, Rewards, CollectedWastes, Notifications, Transactions } from './schema';
 import type { ReportStatus, WasteType, NotificationType } from './schema';
