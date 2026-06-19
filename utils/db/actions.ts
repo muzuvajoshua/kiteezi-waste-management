@@ -25,6 +25,16 @@ export async function getUserByEmail(email: string) {
   }
 }
 
+export async function getUserById(id: number) {
+  try {
+    const [user] = await db.select().from(Users).where(eq(Users.id, id)).execute();
+    return user;
+  } catch (error) {
+    console.error("Error fetching user by id:", error);
+    return null;
+  }
+}
+
 interface VerificationResult {
   verified: boolean;
   confidence?: number;
