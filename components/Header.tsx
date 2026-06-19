@@ -23,18 +23,14 @@ import {
 
 import { Badge } from "./ui/badge";
 
-import { Web3Auth } from "@web3auth/modal";
-import { CHAIN_NAMESPACES, WEB3AUTH_NETWORK } from "@web3auth/base";
-
-import { EthereumPrivateKeyProvider } from "@web3auth/ethereum-provider";
 import {
-  createUser,
   getUserByEmail,
   getUnreadNotifications,
   getUserBalance,
   markNotificationAsRead,
 } from "@/utils/db/actions";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
+import { useWeb3Auth } from "@/components/Web3AuthProvider";
 
 // Custom notification type to avoid conflict with browser's Notification API
 interface NotificationItem {
@@ -46,91 +42,25 @@ interface NotificationItem {
   isRead: boolean;
 }
 
-interface UserInfo {
-  email?: string;
-  name?: string;
-  profileImage?: string;
-  aggregateVerifier?: string;
-  verifier?: string;
-  verifierId?: string;
-  typeOfLogin?: string;
-}
-
-const clientId = process.env.NEXT_PUBLIC_WEB3_AUTH_CLIENT_ID || "";
-
-const chainConfig = {
-  chainNamespace: CHAIN_NAMESPACES.EIP155,
-  chainId: "0xaa36a7",
-  rpcTarget: process.env.NEXT_PUBLIC_RPC_URL || "https://rpc.ankr.com/eth_sepolia",
-  displayName: "Sepolia Testnet",
-  blockExplorerURL: "https://sepolia.etherscan.io",
-  ticker: "ETH",
-  tickerName: "Ethereum",
-  logo: "https://assets.web3auth.io/evm-chains/sepolia.png",
-};
-
-const privateKeyProvider = new EthereumPrivateKeyProvider({
-  config: { chainConfig },
-});
-
-const web3Auth = new Web3Auth({
-  clientId,
-  web3AuthNetwork: WEB3AUTH_NETWORK.SAPPHIRE_DEVNET,
-  privateKeyProvider,
-});
-
 interface HeaderProps {
   onMenuClick: () => void;
   totalEarnings?: number;
 }
 
 export default function Header({ onMenuClick }: HeaderProps) {
-  const [loggedIn, setLoggedIn] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [isWeb3AuthReady, setIsWeb3AuthReady] = useState(false);
-  const [initError, setInitError] = useState<string | null>(null);
-  const [userInfor, setUserInfor] = useState<UserInfo | null>(null);
+  const { user, isReady, login, logout } = useWeb3Auth();
   const [notification, setNotification] = useState<NotificationItem[]>([]);
   const [balance, setBalance] = useState(0);
   const isMobile = useMediaQuery("(max-width: 768px)");
-  useEffect(() => {
-    const init = async () => {
-      try {
-        await web3Auth.initModal();
-        setIsWeb3AuthReady(true);
 
-        if (web3Auth.connected) {
-          setLoggedIn(true);
-          const user = await web3Auth.getUserInfo();
-          setUserInfor(user);
-
-          if (user.email) {
-            localStorage.setItem("email", user.email);
-            try {
-              await createUser(user.email, user.name || "Anonymous User");
-            } catch (error) {
-              console.error("Error creating User", error);
-            }
-          }
-        }
-      } catch (error) {
-        console.error("Error initialising Web3Auth", error);
-        setInitError(
-          "Failed to initialize Web3Auth. Please ensure your domain is whitelisted in the Web3Auth dashboard."
-        );
-      } finally {
-        setLoading(false);
-      }
-    };
-    init();
-  }, []);
+  const loggedIn = !!user;
 
   useEffect(() => {
     const fetchNotifications = async () => {
-      if (userInfor && userInfor.email) {
-        const user = await getUserByEmail(userInfor.email);
-        if (user) {
-          const unReadNotifications = await getUnreadNotifications(user.id);
+      if (user && user.email) {
+        const dbUser = await getUserByEmail(user.email);
+        if (dbUser) {
+          const unReadNotifications = await getUnreadNotifications(dbUser.id);
           setNotification(unReadNotifications);
         }
       }
@@ -139,14 +69,14 @@ export default function Header({ onMenuClick }: HeaderProps) {
 
     const notificationInterval = setInterval(fetchNotifications, 30000);
     return () => clearInterval(notificationInterval);
-  }, [userInfor]);
+  }, [user]);
 
   useEffect(() => {
     const fetchUserBalance = async () => {
-      if (userInfor && userInfor.email) {
-        const user = await getUserByEmail(userInfor.email);
-        if (user) {
-          const userBalance = await getUserBalance(user.id);
+      if (user && user.email) {
+        const dbUser = await getUserByEmail(user.email);
+        if (dbUser) {
+          const userBalance = await getUserBalance(dbUser.id);
           setBalance(userBalance);
         }
       }
@@ -166,75 +96,11 @@ export default function Header({ onMenuClick }: HeaderProps) {
         handleBalanceUpdate as EventListener
       );
     };
-  }, [userInfor]);
-
-  const login = async () => {
-    if (!web3Auth) {
-      console.error("Web3Auth not initialised");
-      return;
-    }
-    if (!isWeb3AuthReady) {
-      console.error("Web3Auth modal not ready yet. Please wait for initialization to complete.");
-      return;
-    }
-    try {
-      await web3Auth.connect();
-      setLoggedIn(true);
-
-      const user = await web3Auth.getUserInfo();
-      setUserInfor(user);
-
-      if (user.email) {
-        localStorage.setItem("email", user.email);
-        try {
-          await createUser(user.email, user.name || "Anonymous User");
-        } catch (error) {
-          console.error("Error creating User", error);
-        }
-      }
-    } catch (error) {
-      console.error("Error logging in", error);
-    }
-  };
-
-  const logout = async () => {
-    if (!web3Auth) {
-      console.error("Web3Auth not initialised");
-      return;
-    }
-    try {
-      await web3Auth.logout();
-      setLoggedIn(false);
-      setUserInfor(null);
-      localStorage.removeItem("email");
-    } catch (error) {
-      console.error("Error logging out", error);
-    }
-  };
-
-  const getUserInfor = async () => {
-    if (web3Auth.connected) {
-      const user = await web3Auth.getUserInfo();
-      setUserInfor(user);
-
-      if (user.email) {
-        localStorage.setItem("email", user.email);
-        try {
-          await createUser(user.email, user.name || "Anonymous User");
-        } catch (error) {
-          console.error("Error creating User", error);
-        }
-      }
-    }
-  };
+  }, [user]);
 
   const handleNotificationClick = async (notificationId: number) => {
     await markNotificationAsRead(notificationId);
   };
-
-  if (loading) {
-    return <div>Loading web3Auth ........</div>;
-  }
 
    return (
     <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
@@ -307,10 +173,10 @@ export default function Header({ onMenuClick }: HeaderProps) {
           {!loggedIn ? (
             <Button
               onClick={login}
-              disabled={!isWeb3AuthReady}
+              disabled={!isReady}
               className="bg-green-600 hover:bg-green-700 text-white text-sm md:text-base disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {isWeb3AuthReady ? "Login" : "Initializing..."}
+              {isReady ? "Login" : "Initializing..."}
               <LogIn className="ml-1 md:ml-2 h-4 w-4 md:h-5 md:w-5" />
             </Button>
           ) : (
@@ -322,8 +188,8 @@ export default function Header({ onMenuClick }: HeaderProps) {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={getUserInfor}>
-                  {userInfor ? userInfor.name : "Fetch User Info"}
+                <DropdownMenuItem>
+                  {user ? user.name : "User"}
                 </DropdownMenuItem>
                 <DropdownMenuItem>
                   <Link href="/settings">Profile</Link>
