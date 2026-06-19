@@ -11,7 +11,6 @@ import {
 import { Web3Auth } from "@web3auth/modal";
 import { CHAIN_NAMESPACES, WEB3AUTH_NETWORK } from "@web3auth/base";
 import { EthereumPrivateKeyProvider } from "@web3auth/ethereum-provider";
-import { createUser } from "@/utils/db/actions";
 
 export interface Web3AuthUser {
   email?: string;
@@ -21,6 +20,7 @@ export interface Web3AuthUser {
   verifier?: string;
   verifierId?: string;
   typeOfLogin?: string;
+  idToken?: string;
 }
 
 interface Web3AuthContextValue {
@@ -55,12 +55,18 @@ export function Web3AuthProvider({ children }: { children: ReactNode }) {
   const syncUser = async (web3Auth: Web3Auth) => {
     const info = (await web3Auth.getUserInfo()) as Web3AuthUser;
     setUser(info);
-    if (info.email) {
-      localStorage.setItem("email", info.email);
+    // Establish a server session: POST the Web3Auth ID token; the server
+    // verifies it against the JWKS, upserts the user, and sets the session
+    // cookie. Identity now lives in the cookie, not in localStorage.
+    if (info.idToken) {
       try {
-        await createUser(info.email, info.name || "Anonymous User");
+        await fetch("/api/auth/session", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ idToken: info.idToken }),
+        });
       } catch (error) {
-        console.error("Error creating User", error);
+        console.error("Error establishing server session", error);
       }
     }
   };
@@ -120,7 +126,11 @@ export function Web3AuthProvider({ children }: { children: ReactNode }) {
     try {
       await web3Auth.logout();
       setUser(null);
-      localStorage.removeItem("email");
+      try {
+        await fetch("/api/auth/logout", { method: "POST" });
+      } catch (error) {
+        console.error("Error clearing server session", error);
+      }
     } catch (error) {
       console.error("Error logging out", error);
     }
