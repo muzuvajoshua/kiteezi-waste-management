@@ -3,6 +3,8 @@ import { verifyWeb3AuthToken } from "@/lib/web3auth";
 import { createSessionToken, setSessionCookie } from "@/lib/session";
 import { getUserByEmail, createUser } from "@/utils/db/internal";
 import { assignRole } from "@/utils/db/roles";
+import { validate, ValidationError } from "@/lib/validation";
+import { sessionRequestSchema } from "@/utils/db/schemas";
 
 export async function POST(req: Request) {
   let body: unknown;
@@ -12,9 +14,14 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
   }
 
-  const idToken = (body as { idToken?: unknown })?.idToken;
-  if (!idToken || typeof idToken !== "string") {
-    return NextResponse.json({ error: "Missing idToken" }, { status: 400 });
+  let idToken: string;
+  try {
+    idToken = validate(sessionRequestSchema, body).idToken;
+  } catch (error) {
+    if (error instanceof ValidationError) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+    throw error;
   }
 
   let claims;
