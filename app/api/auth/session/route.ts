@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { verifyWeb3AuthToken } from "@/lib/web3auth";
 import { createSessionToken, setSessionCookie } from "@/lib/session";
-import { getUserByEmail, createUser } from "@/utils/db/actions";
+import { getUserByEmail, createUser } from "@/utils/db/internal";
+import { assignRole } from "@/utils/db/roles";
 
 export async function POST(req: Request) {
   let body: unknown;
@@ -31,13 +32,17 @@ export async function POST(req: Request) {
   let dbUser = await getUserByEmail(email);
   if (!dbUser) {
     dbUser = await createUser(email, claims.name || "Anonymous User");
+    if (dbUser) {
+      // Every new user starts as a citizen (KWM-008).
+      await assignRole(dbUser.id, "citizen");
+    }
   }
   if (!dbUser) {
     return NextResponse.json({ error: "Could not resolve user" }, { status: 500 });
   }
 
-  // role defaults to "citizen" until KWM-008 introduces the roles tables.
-  const token = await createSessionToken({ userId: dbUser.id, role: "citizen" });
+  // The cookie carries identity only; roles are resolved from the DB per request.
+  const token = await createSessionToken({ userId: dbUser.id });
   await setSessionCookie(token);
 
   return NextResponse.json({

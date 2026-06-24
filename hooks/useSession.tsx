@@ -6,7 +6,7 @@ export interface SessionUser {
   id: number;
   email: string;
   name: string;
-  role: string;
+  roles: string[];
 }
 
 /**

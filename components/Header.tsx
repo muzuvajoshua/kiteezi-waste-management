@@ -24,13 +24,13 @@ import {
 import { Badge } from "./ui/badge";
 
 import {
-  getUserByEmail,
   getUnreadNotifications,
   getUserBalance,
   markNotificationAsRead,
 } from "@/utils/db/actions";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { useWeb3Auth } from "@/components/Web3AuthProvider";
+import { useSession } from "@/hooks/useSession";
 
 // Custom notification type to avoid conflict with browser's Notification API
 interface NotificationItem {
@@ -49,6 +49,9 @@ interface HeaderProps {
 
 export default function Header({ onMenuClick }: HeaderProps) {
   const { user, isReady, login, logout } = useWeb3Auth();
+  // Identity for data fetching comes from the server session (cookie-derived),
+  // not from the client Web3Auth object. Web3Auth still drives login/logout UI.
+  const { user: sessionUser } = useSession();
   const [notification, setNotification] = useState<NotificationItem[]>([]);
   const [balance, setBalance] = useState(0);
   const isMobile = useMediaQuery("(max-width: 768px)");
@@ -57,29 +60,21 @@ export default function Header({ onMenuClick }: HeaderProps) {
 
   useEffect(() => {
     const fetchNotifications = async () => {
-      if (user && user.email) {
-        const dbUser = await getUserByEmail(user.email);
-        if (dbUser) {
-          const unReadNotifications = await getUnreadNotifications(dbUser.id);
-          setNotification(unReadNotifications);
-        }
-      }
+      if (!sessionUser) return;
+      const unReadNotifications = await getUnreadNotifications();
+      setNotification(unReadNotifications);
     };
     fetchNotifications();
 
     const notificationInterval = setInterval(fetchNotifications, 30000);
     return () => clearInterval(notificationInterval);
-  }, [user]);
+  }, [sessionUser]);
 
   useEffect(() => {
     const fetchUserBalance = async () => {
-      if (user && user.email) {
-        const dbUser = await getUserByEmail(user.email);
-        if (dbUser) {
-          const userBalance = await getUserBalance(dbUser.id);
-          setBalance(userBalance);
-        }
-      }
+      if (!sessionUser) return;
+      const userBalance = await getUserBalance();
+      setBalance(userBalance);
     };
     fetchUserBalance();
 
@@ -96,7 +91,7 @@ export default function Header({ onMenuClick }: HeaderProps) {
         handleBalanceUpdate as EventListener
       );
     };
-  }, [user]);
+  }, [sessionUser]);
 
   const handleNotificationClick = async (notificationId: number) => {
     await markNotificationAsRead(notificationId);
