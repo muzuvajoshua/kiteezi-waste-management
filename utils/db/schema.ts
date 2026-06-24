@@ -1,4 +1,4 @@
-import {integer, varchar, pgTable,serial,text, jsonb, timestamp,boolean, index, pgEnum} from 'drizzle-orm/pg-core';
+import {integer, varchar, pgTable,serial,text, jsonb, timestamp,boolean, index, pgEnum, unique} from 'drizzle-orm/pg-core';
 
 // ---------------------------------------------------------------------------
 // Enums (KWM-015) — replace free-text status/type columns with constrained
@@ -118,4 +118,31 @@ export const AuditLog = pgTable('audit_log', {
     createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (table) => ({
     actorCreatedAtIdx: index('audit_log_actor_user_id_created_at_idx').on(table.actorUserId, table.createdAt),
+}));
+
+// ---------------------------------------------------------------------------
+// RBAC (KWM-008) — normalised roles. `roles` is a seeded catalog; `user_roles`
+// is the many-to-many grant table carrying an audit trail (granted_at /
+// granted_by). Role *names* are the source of truth for authorization; the
+// canonical set is ROLE_NAMES, seeded by migration 0004.
+// ---------------------------------------------------------------------------
+export const ROLE_NAMES = ['citizen', 'operator', 'supervisor', 'admin', 'dump_op'] as const;
+export type Role = (typeof ROLE_NAMES)[number];
+
+export const Roles = pgTable('roles', {
+    id: serial('id').primaryKey(),
+    name: varchar('name', { length: 50 }).notNull().unique(),
+    description: text('description'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
+export const UserRoles = pgTable('user_roles', {
+    id: serial('id').primaryKey(),
+    userId: integer('user_id').notNull().references(() => Users.id, { onDelete: 'cascade' }),
+    roleId: integer('role_id').notNull().references(() => Roles.id, { onDelete: 'restrict' }),
+    grantedAt: timestamp('granted_at').defaultNow().notNull(),
+    grantedBy: integer('granted_by').references(() => Users.id, { onDelete: 'set null' }),
+}, (table) => ({
+    userIdIdx: index('user_roles_user_id_idx').on(table.userId),
+    userRoleUnique: unique('user_roles_user_id_role_id_unique').on(table.userId, table.roleId),
 }));
