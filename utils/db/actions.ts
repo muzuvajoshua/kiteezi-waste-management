@@ -6,6 +6,18 @@ import type { ReportStatus, WasteType, Role } from './schema';
 import { eq, sql, and, desc } from 'drizzle-orm';
 import { requireUser, requireRole, requireOwnership } from '@/lib/rbac';
 import { updateRewardPoints, createTransaction, createNotification, getOrCreateReward } from './internal';
+import { validate } from '@/lib/validation';
+import {
+  createReportSchema,
+  updateReportStatusSchema,
+  updateTaskStatusSchema,
+  recentReportsSchema,
+  wasteCollectionTasksSchema,
+  redeemRewardSchema,
+  saveRewardSchema,
+  collectedWasteSchema,
+  markNotificationReadSchema,
+} from './schemas';
 
 // KWM-009 — every exported function here is a "use server" action, i.e. a
 // public RPC endpoint. The acting identity is ALWAYS derived from the session
@@ -17,12 +29,6 @@ import { updateRewardPoints, createTransaction, createNotification, getOrCreateR
 const COLLECTION_ROLES: Role[] = ['operator', 'supervisor', 'admin'];
 const REVIEW_ROLES: Role[] = ['supervisor', 'admin'];
 const OPS_VIEW_ROLES: Role[] = ['operator', 'supervisor', 'admin'];
-
-interface VerificationResult {
-  verified: boolean;
-  confidence?: number;
-  details?: string;
-}
 
 interface UserReward {
   id: number;
@@ -38,21 +44,22 @@ export async function createReport(
   location: string,
   wasteType: WasteType,
   amount: string,
-  imageUrl?: string,
-  type?: string,
-  verificationResult?: VerificationResult
+  imageUrl?: string
 ) {
   const me = await requireUser();
+  const input = validate(createReportSchema, { location, wasteType, amount, imageUrl });
   try {
     const [report] = await db
       .insert(Reports)
       .values({
         user_id: me.userId,
-        location,
-        wasteType,
-        amount,
-        imageUrl,
-        verificationResult,
+        location: input.location,
+        wasteType: input.wasteType,
+        amount: input.amount,
+        imageUrl: input.imageUrl,
+        // Set server-side (pending) — the AI verdict is never client-trusted;
+        // trusted verification arrives in KWM-043.
+        verificationResult: null,
         status: "pending",
       })
       .returning()
@@ -103,15 +110,16 @@ export async function getUnreadNotifications() {
 export async function markNotificationAsRead(notificationId: number) {
   // Authenticate before any lookup, then enforce ownership (admins may override).
   await requireUser();
+  const { notificationId: id } = validate(markNotificationReadSchema, { notificationId });
   const [notif] = await db
     .select()
     .from(Notifications)
-    .where(eq(Notifications.id, notificationId))
+    .where(eq(Notifications.id, id))
     .execute();
   if (!notif) return;
   await requireOwnership(notif.userId, { allowRoles: ['admin'] });
   try {
-    await db.update(Notifications).set({ isRead: true }).where(eq(Notifications.id, notificationId)).execute();
+    await db.update(Notifications).set({ isRead: true }).where(eq(Notifications.id, id)).execute();
   } catch (error) {
     console.error("Error marking notification as read:", error);
   }
@@ -192,10 +200,11 @@ export async function getUserBalance(): Promise<number> {
 
 export async function redeemReward(rewardId: number) {
   const me = await requireUser();
+  const { rewardId: id } = validate(redeemRewardSchema, { rewardId });
   try {
     const userReward = await getOrCreateReward(me.userId) as UserReward | null;
 
-    if (rewardId === 0) {
+    if (id === 0) {
       // Redeem all points.
       const [updatedReward] = await db.update(Rewards)
         .set({ points: 0, updatedAt: new Date() })
@@ -209,7 +218,7 @@ export async function redeemReward(rewardId: number) {
 
       return updatedReward;
     } else {
-      const availableReward = await db.select().from(Rewards).where(eq(Rewards.id, rewardId)).execute();
+      const availableReward = await db.select().from(Rewards).where(eq(Rewards.id, id)).execute();
 
       if (!userReward || !availableReward[0] || userReward.points < availableReward[0].points) {
         throw new Error("Insufficient points or invalid reward");
@@ -248,11 +257,12 @@ export async function getCollectedWastesByCollector() {
 
 export async function createCollectedWaste(reportId: number) {
   const me = await requireRole(COLLECTION_ROLES);
+  const { reportId: id } = validate(collectedWasteSchema, { reportId });
   try {
     const [collectedWaste] = await db
       .insert(CollectedWastes)
       .values({
-        reportId,
+        reportId: id,
         collectorId: me.userId,
         collectionDate: new Date(),
       })
@@ -267,11 +277,12 @@ export async function createCollectedWaste(reportId: number) {
 
 export async function saveCollectedWaste(reportId: number) {
   const me = await requireRole(COLLECTION_ROLES);
+  const { reportId: id } = validate(collectedWasteSchema, { reportId });
   try {
     const [collectedWaste] = await db
       .insert(CollectedWastes)
       .values({
-        reportId,
+        reportId: id,
         collectorId: me.userId,
         collectionDate: new Date(),
         status: 'verified',
@@ -289,11 +300,12 @@ export async function updateTaskStatus(reportId: number, newStatus: ReportStatus
   // The acting operator claims the task; collector is the session user, never a
   // caller-supplied id.
   const me = await requireRole(COLLECTION_ROLES);
+  const input = validate(updateTaskStatusSchema, { reportId, newStatus });
   try {
     const [updatedReport] = await db
       .update(Reports)
-      .set({ status: newStatus, collector_id: me.userId })
-      .where(eq(Reports.id, reportId))
+      .set({ status: input.newStatus, collector_id: me.userId })
+      .where(eq(Reports.id, input.reportId))
       .returning()
       .execute();
     return updatedReport;
@@ -307,20 +319,21 @@ export async function updateTaskStatus(reportId: number, newStatus: ReportStatus
 // authorised operator/admin resolved from the session, not the recipient.
 export async function saveReward(recipientUserId: number, amount: number) {
   await requireRole(COLLECTION_ROLES);
+  const input = validate(saveRewardSchema, { recipientUserId, amount });
   try {
     const [reward] = await db
       .insert(Rewards)
       .values({
-        user_id: recipientUserId,
+        user_id: input.recipientUserId,
         name: 'Waste Collection Reward',
         collectionInfor: 'Points earned from waste collection',
-        points: amount,
+        points: input.amount,
         isAvailable: true,
       })
       .returning()
       .execute();
 
-    await createTransaction(recipientUserId, 'earned_collect', amount, 'Points earned for collecting waste');
+    await createTransaction(input.recipientUserId, 'earned_collect', input.amount, 'Points earned for collecting waste');
 
     return reward;
   } catch (error) {
@@ -343,11 +356,12 @@ export async function getPendingReports() {
 
 export async function updateReportStatus(reportId: number, status: ReportStatus) {
   await requireRole(REVIEW_ROLES);
+  const input = validate(updateReportStatusSchema, { reportId, status });
   try {
     const [updatedReport] = await db
       .update(Reports)
-      .set({ status })
-      .where(eq(Reports.id, reportId))
+      .set({ status: input.status })
+      .where(eq(Reports.id, input.reportId))
       .returning()
       .execute();
     return updatedReport;
@@ -382,12 +396,13 @@ export async function getAllRewards() {
 
 export async function getRecentReports(limit: number = 10) {
   await requireRole(OPS_VIEW_ROLES);
+  const { limit: lim } = validate(recentReportsSchema, { limit });
   try {
     return await db
       .select()
       .from(Reports)
       .orderBy(desc(Reports.created_at))
-      .limit(limit)
+      .limit(lim)
       .execute();
   } catch (error) {
     console.error("Error fetching recent reports:", error);
@@ -397,6 +412,7 @@ export async function getRecentReports(limit: number = 10) {
 
 export async function getWasteCollectionTasks(limit: number = 20) {
   await requireRole(OPS_VIEW_ROLES);
+  const { limit: lim } = validate(wasteCollectionTasksSchema, { limit });
   try {
     const tasks = await db
       .select({
@@ -409,7 +425,7 @@ export async function getWasteCollectionTasks(limit: number = 20) {
         collectorId: Reports.collector_id,
       })
       .from(Reports)
-      .limit(limit)
+      .limit(lim)
       .execute();
 
     return tasks.map(task => ({
