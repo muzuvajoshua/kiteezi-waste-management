@@ -1,12 +1,14 @@
 "use server";
 
 import { db } from './dbConfig';
-import { Users, Reports, Rewards, CollectedWastes, Notifications, Transactions } from './schema';
+import { txdb } from './txClient';
+import { Users, Reports, CollectedWastes, Notifications, RewardCatalog, UserRewardBalance, PointTransactions } from './schema';
 import type { ReportStatus, WasteType, Role } from './schema';
 import { eq, sql, and, desc } from 'drizzle-orm';
 import { requireUser, requireRole, requireOwnership } from '@/lib/rbac';
-import { updateRewardPoints, createTransaction, createNotification, getOrCreateReward } from './internal';
+import { recordPointTransaction, getBalance, getPointTransactions, createNotification } from './internal';
 import { validate } from '@/lib/validation';
+import { InsufficientPointsError, RewardUnavailableError } from '@/lib/errors';
 import {
   createReportSchema,
   updateReportStatusSchema,
@@ -15,28 +17,21 @@ import {
   wasteCollectionTasksSchema,
   redeemRewardSchema,
   saveRewardSchema,
+  rewardTransactionsQuerySchema,
   collectedWasteSchema,
   markNotificationReadSchema,
 } from './schemas';
 
-// KWM-009 — every exported function here is a "use server" action, i.e. a
-// public RPC endpoint. The acting identity is ALWAYS derived from the session
-// (requireUser / requireRole / requireOwnership) and never accepted as a
-// caller-supplied argument. Privileged operations are gated by role; user
-// identities only ever appear as *targets* of an operation an authorised actor
-// performs (e.g. saveReward's recipient), never as the actor. This closes C-4.
+// KWM-009 — every exported function is a "use server" action (a public RPC
+// endpoint). The acting identity is ALWAYS derived from the session; user ids
+// only ever appear as operation *targets* (e.g. saveReward's recipient).
+// KWM-011/012/018 — reward writes are atomic (txdb transaction + materialised
+// balance kept in lockstep with the append-only ledger); balance reads come
+// from user_reward_balance, never from summing a truncated transaction list.
 
 const COLLECTION_ROLES: Role[] = ['operator', 'supervisor', 'admin'];
 const REVIEW_ROLES: Role[] = ['supervisor', 'admin'];
 const OPS_VIEW_ROLES: Role[] = ['operator', 'supervisor', 'admin'];
-
-interface UserReward {
-  id: number;
-  user_id: number;
-  points: number;
-  name: string;
-  isAvailable: boolean;
-}
 
 // --- Self-service: the actor is the session user ----------------------------
 
@@ -48,38 +43,46 @@ export async function createReport(
 ) {
   const me = await requireUser();
   const input = validate(createReportSchema, { location, wasteType, amount, imageUrl });
+
+  let report;
   try {
-    const [report] = await db
-      .insert(Reports)
-      .values({
-        user_id: me.userId,
-        location: input.location,
-        wasteType: input.wasteType,
-        amount: input.amount,
-        imageUrl: input.imageUrl,
-        // Set server-side (pending) — the AI verdict is never client-trusted;
-        // trusted verification arrives in KWM-043.
-        verificationResult: null,
-        status: "pending",
-      })
-      .returning()
-      .execute();
+    report = await txdb.transaction(async (tx) => {
+      const [created] = await tx
+        .insert(Reports)
+        .values({
+          user_id: me.userId,
+          location: input.location,
+          wasteType: input.wasteType,
+          amount: input.amount,
+          imageUrl: input.imageUrl,
+          // Set server-side (pending) — the AI verdict is never client-trusted (KWM-043).
+          verificationResult: null,
+          status: "pending",
+        })
+        .returning();
 
-    // Award 10 points for reporting waste.
-    const pointsEarned = 10;
-    await updateRewardPoints(me.userId, pointsEarned);
-    await createTransaction(me.userId, 'earned_report', pointsEarned, 'Points earned for reporting waste');
-    await createNotification(
-      me.userId,
-      `You've earned ${pointsEarned} points for reporting waste!`,
-      'reward'
-    );
+      // Exactly one +10 per report row. NOTE: this prevents replaying the earn
+      // for the SAME report; it does NOT dedupe a duplicate report submission
+      // (a resubmit creates a new report) — that needs a client key (KWM-025/041)
+      // and/or rate limiting (KWM-054).
+      await recordPointTransaction(tx, {
+        userId: me.userId,
+        kind: 'earn_report',
+        amount: 10,
+        relatedReportId: created.id,
+        idempotencyKey: `report:${created.id}:earn`,
+      });
 
-    return report;
+      return created;
+    });
   } catch (error) {
     console.error("Error creating report:", error);
     return null;
   }
+
+  // Best-effort and non-critical: a notification failure must not roll back the report.
+  await createNotification(me.userId, `You've earned 10 points for reporting waste!`, 'reward');
+  return report;
 }
 
 export async function getReportsByUserId() {
@@ -125,122 +128,87 @@ export async function markNotificationAsRead(notificationId: number) {
   }
 }
 
-export async function getRewardTransactions() {
-  const me = await requireUser();
-  try {
-    const transactions = await db
-      .select({
-        id: Transactions.id,
-        type: Transactions.type,
-        amount: Transactions.amount,
-        description: Transactions.description,
-        date: Transactions.date,
-      })
-      .from(Transactions)
-      .where(eq(Transactions.userId, me.userId))
-      .orderBy(desc(Transactions.date))
-      .limit(10)
-      .execute();
+// --- Rewards (KWM-011/012) --------------------------------------------------
 
-    return transactions.map(t => ({
-      ...t,
-      date: t.date.toISOString().split('T')[0], // Format date as YYYY-MM-DD
-    }));
+export async function getUserBalance(): Promise<number> {
+  const me = await requireUser();
+  return getBalance(me.userId); // materialised balance — no pagination dependency
+}
+
+export async function getRewardTransactions(
+  limit: number = 20,
+  cursor?: { createdAt: Date | string; id: number }
+) {
+  const me = await requireUser();
+  const input = validate(rewardTransactionsQuerySchema, { limit, cursor });
+  try {
+    return await getPointTransactions(me.userId, { limit: input.limit, cursor: input.cursor });
   } catch (error) {
     console.error("Error fetching reward transactions:", error);
-    return [];
+    return { items: [], nextCursor: null };
   }
 }
 
 export async function getAvailableRewards() {
-  await requireUser();
+  const me = await requireUser();
   try {
-    // getRewardTransactions also enforces the session; identity flows from there.
-    const userTransactions = await getRewardTransactions();
-    const userPoints = userTransactions.reduce((total, transaction) => {
-      return transaction.type.startsWith('earned') ? total + transaction.amount : total - transaction.amount;
-    }, 0);
-
-    const dbRewards = await db
+    const balance = await getBalance(me.userId);
+    const items = await db
       .select({
-        id: Rewards.id,
-        name: Rewards.name,
-        cost: Rewards.points,
-        description: Rewards.description,
-        collectionInfo: Rewards.collectionInfor,
+        id: RewardCatalog.id,
+        name: RewardCatalog.name,
+        description: RewardCatalog.description,
+        costPoints: RewardCatalog.costPoints,
       })
-      .from(Rewards)
-      .where(eq(Rewards.isAvailable, true))
+      .from(RewardCatalog)
+      .where(eq(RewardCatalog.isAvailable, true))
       .execute();
-
-    return [
-      {
-        id: 0, // Special ID for the user's own points balance.
-        name: "Your Points",
-        cost: userPoints,
-        description: "Redeem your earned points",
-        collectionInfo: "Points earned from reporting and collecting waste"
-      },
-      ...dbRewards
-    ];
+    return { balance, items };
   } catch (error) {
     console.error("Error fetching available rewards:", error);
-    return [];
+    return { balance: 0, items: [] };
   }
-}
-
-export async function getUserBalance(): Promise<number> {
-  await requireUser();
-  const transactions = await getRewardTransactions();
-  const balance = transactions.reduce((acc, transaction) => {
-    return transaction.type.startsWith('earned') ? acc + transaction.amount : acc - transaction.amount;
-  }, 0);
-  return Math.max(balance, 0); // Ensure balance is never negative.
 }
 
 export async function redeemReward(rewardId: number) {
   const me = await requireUser();
   const { rewardId: id } = validate(redeemRewardSchema, { rewardId });
-  try {
-    const userReward = await getOrCreateReward(me.userId) as UserReward | null;
+
+  return txdb.transaction(async (tx) => {
+    const [bal] = await tx
+      .select({ points: UserRewardBalance.points })
+      .from(UserRewardBalance)
+      .where(eq(UserRewardBalance.userId, me.userId))
+      .for('update');
+    const points = bal?.points ?? 0;
 
     if (id === 0) {
-      // Redeem all points.
-      const [updatedReward] = await db.update(Rewards)
+      // Redeem the entire balance.
+      if (points <= 0) return { balance: 0 };
+      await tx.insert(PointTransactions).values({ userId: me.userId, kind: 'redeem', amount: -points });
+      await tx
+        .update(UserRewardBalance)
         .set({ points: 0, updatedAt: new Date() })
-        .where(eq(Rewards.user_id, me.userId))
-        .returning()
-        .execute();
-
-      if (userReward) {
-        await createTransaction(me.userId, 'redeemed', userReward.points, `Redeemed all points: ${userReward.points}`);
-      }
-
-      return updatedReward;
-    } else {
-      const availableReward = await db.select().from(Rewards).where(eq(Rewards.id, id)).execute();
-
-      if (!userReward || !availableReward[0] || userReward.points < availableReward[0].points) {
-        throw new Error("Insufficient points or invalid reward");
-      }
-
-      const [updatedReward] = await db.update(Rewards)
-        .set({
-          points: sql`${Rewards.points} - ${availableReward[0].points}`,
-          updatedAt: new Date(),
-        })
-        .where(eq(Rewards.user_id, me.userId))
-        .returning()
-        .execute();
-
-      await createTransaction(me.userId, 'redeemed', availableReward[0].points, `Redeemed: ${availableReward[0].name}`);
-
-      return updatedReward;
+        .where(eq(UserRewardBalance.userId, me.userId));
+      return { balance: 0 };
     }
-  } catch (error) {
-    console.error("Error redeeming reward:", error);
-    throw error;
-  }
+
+    const [item] = await tx.select().from(RewardCatalog).where(eq(RewardCatalog.id, id)).execute();
+    if (!item || !item.isAvailable) throw new RewardUnavailableError();
+    if (points < item.costPoints) throw new InsufficientPointsError();
+
+    await tx.insert(PointTransactions).values({
+      userId: me.userId,
+      kind: 'redeem',
+      amount: -item.costPoints,
+      relatedRedemptionId: item.id,
+    });
+    await tx
+      .update(UserRewardBalance)
+      .set({ points: sql`${UserRewardBalance.points} - ${item.costPoints}`, updatedAt: new Date() })
+      .where(eq(UserRewardBalance.userId, me.userId));
+    return { balance: points - item.costPoints };
+  });
 }
 
 // --- Operator / collection: requires a collection role; collector = session --
@@ -297,8 +265,7 @@ export async function saveCollectedWaste(reportId: number) {
 }
 
 export async function updateTaskStatus(reportId: number, newStatus: ReportStatus) {
-  // The acting operator claims the task; collector is the session user, never a
-  // caller-supplied id.
+  // The acting operator claims the task; collector is the session user.
   const me = await requireRole(COLLECTION_ROLES);
   const input = validate(updateTaskStatusSchema, { reportId, newStatus });
   try {
@@ -315,31 +282,22 @@ export async function updateTaskStatus(reportId: number, newStatus: ReportStatus
   }
 }
 
-// saveReward awards points to a *recipient* (a reporter) — the actor is an
-// authorised operator/admin resolved from the session, not the recipient.
-export async function saveReward(recipientUserId: number, amount: number) {
+// saveReward awards points to a *recipient* (a reporter) — actor is an authorised
+// operator/admin from the session. NOT idempotent without a caller-supplied
+// stable key (deterministic dedup deferred to KWM-031).
+export async function saveReward(recipientUserId: number, amount: number, idempotencyKey?: string) {
   await requireRole(COLLECTION_ROLES);
-  const input = validate(saveRewardSchema, { recipientUserId, amount });
-  try {
-    const [reward] = await db
-      .insert(Rewards)
-      .values({
-        user_id: input.recipientUserId,
-        name: 'Waste Collection Reward',
-        collectionInfor: 'Points earned from waste collection',
-        points: input.amount,
-        isAvailable: true,
-      })
-      .returning()
-      .execute();
+  const input = validate(saveRewardSchema, { recipientUserId, amount, idempotencyKey });
 
-    await createTransaction(input.recipientUserId, 'earned_collect', input.amount, 'Points earned for collecting waste');
-
-    return reward;
-  } catch (error) {
-    console.error("Error saving reward:", error);
-    throw error;
-  }
+  return txdb.transaction(async (tx) => {
+    const applied = await recordPointTransaction(tx, {
+      userId: input.recipientUserId,
+      kind: 'earn_collect',
+      amount: input.amount,
+      idempotencyKey: input.idempotencyKey ?? null,
+    });
+    return { applied };
+  });
 }
 
 // --- Review / oversight: supervisor or admin --------------------------------
@@ -376,15 +334,13 @@ export async function getAllRewards() {
   try {
     return await db
       .select({
-        id: Rewards.id,
-        userId: Rewards.user_id,
-        points: Rewards.points,
-        createdAt: Rewards.createdAt,
+        userId: UserRewardBalance.userId,
+        points: UserRewardBalance.points,
         userName: Users.name,
       })
-      .from(Rewards)
-      .leftJoin(Users, eq(Rewards.user_id, Users.id))
-      .orderBy(desc(Rewards.points))
+      .from(UserRewardBalance)
+      .leftJoin(Users, eq(UserRewardBalance.userId, Users.id))
+      .orderBy(desc(UserRewardBalance.points))
       .execute();
   } catch (error) {
     console.error("Error fetching all rewards:", error);
