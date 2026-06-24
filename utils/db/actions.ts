@@ -2,38 +2,21 @@
 
 import { db } from './dbConfig';
 import { Users, Reports, Rewards, CollectedWastes, Notifications, Transactions } from './schema';
-import type { ReportStatus, WasteType, NotificationType } from './schema';
+import type { ReportStatus, WasteType, Role } from './schema';
 import { eq, sql, and, desc } from 'drizzle-orm';
+import { requireUser, requireRole, requireOwnership } from '@/lib/rbac';
+import { updateRewardPoints, createTransaction, createNotification, getOrCreateReward } from './internal';
 
-export async function createUser(email: string, name: string) {
-  try {
-    const [user] = await db.insert(Users).values({ email, name }).returning().execute();
-    return user;
-  } catch (error) {
-    console.error("Error creating user:", error);
-    return null;
-  }
-}
+// KWM-009 — every exported function here is a "use server" action, i.e. a
+// public RPC endpoint. The acting identity is ALWAYS derived from the session
+// (requireUser / requireRole / requireOwnership) and never accepted as a
+// caller-supplied argument. Privileged operations are gated by role; user
+// identities only ever appear as *targets* of an operation an authorised actor
+// performs (e.g. saveReward's recipient), never as the actor. This closes C-4.
 
-export async function getUserByEmail(email: string) {
-  try {
-    const [user] = await db.select().from(Users).where(eq(Users.email, email)).execute();
-    return user;
-  } catch (error) {
-    console.error("Error fetching user by email:", error);
-    return null;
-  }
-}
-
-export async function getUserById(id: number) {
-  try {
-    const [user] = await db.select().from(Users).where(eq(Users.id, id)).execute();
-    return user;
-  } catch (error) {
-    console.error("Error fetching user by id:", error);
-    return null;
-  }
-}
+const COLLECTION_ROLES: Role[] = ['operator', 'supervisor', 'admin'];
+const REVIEW_ROLES: Role[] = ['supervisor', 'admin'];
+const OPS_VIEW_ROLES: Role[] = ['operator', 'supervisor', 'admin'];
 
 interface VerificationResult {
   verified: boolean;
@@ -41,8 +24,17 @@ interface VerificationResult {
   details?: string;
 }
 
+interface UserReward {
+  id: number;
+  user_id: number;
+  points: number;
+  name: string;
+  isAvailable: boolean;
+}
+
+// --- Self-service: the actor is the session user ----------------------------
+
 export async function createReport(
-  userId: number,
   location: string,
   wasteType: WasteType,
   amount: string,
@@ -50,11 +42,12 @@ export async function createReport(
   type?: string,
   verificationResult?: VerificationResult
 ) {
+  const me = await requireUser();
   try {
     const [report] = await db
       .insert(Reports)
       .values({
-        user_id: userId,
+        user_id: me.userId,
         location,
         wasteType,
         amount,
@@ -65,16 +58,12 @@ export async function createReport(
       .returning()
       .execute();
 
-    // Award 10 points for reporting waste
+    // Award 10 points for reporting waste.
     const pointsEarned = 10;
-    await updateRewardPoints(userId, pointsEarned);
-
-    // Create a transaction for the earned points
-    await createTransaction(userId, 'earned_report', pointsEarned, 'Points earned for reporting waste');
-
-    // Create a notification for the user
+    await updateRewardPoints(me.userId, pointsEarned);
+    await createTransaction(me.userId, 'earned_report', pointsEarned, 'Points earned for reporting waste');
     await createNotification(
-      userId,
+      me.userId,
       `You've earned ${pointsEarned} points for reporting waste!`,
       'reward'
     );
@@ -86,60 +75,185 @@ export async function createReport(
   }
 }
 
-export async function getReportsByUserId(userId: number) {
+export async function getReportsByUserId() {
+  const me = await requireUser();
   try {
-    const reports = await db.select().from(Reports).where(eq(Reports.user_id, userId)).execute();
-    return reports;
+    return await db.select().from(Reports).where(eq(Reports.user_id, me.userId)).execute();
   } catch (error) {
     console.error("Error fetching reports:", error);
     return [];
   }
 }
 
-export async function getOrCreateReward(userId: number) {
+export async function getUnreadNotifications() {
+  const me = await requireUser();
   try {
-    let [reward] = await db.select().from(Rewards).where(eq(Rewards.user_id, userId)).execute();
-    if (!reward) {
-      [reward] = await db.insert(Rewards).values({
-        user_id: userId,
-        name: 'Default Reward',
-        collectionInfor: 'Default Collection Info',
-        points: 0,
-        isAvailable: true,
-      }).returning().execute();
-    }
-    return reward;
+    return await db.select().from(Notifications).where(
+      and(
+        eq(Notifications.userId, me.userId),
+        eq(Notifications.isRead, false)
+      )
+    ).execute();
   } catch (error) {
-    console.error("Error getting or creating reward:", error);
-    return null;
+    console.error("Error fetching unread notifications:", error);
+    return [];
   }
 }
 
-export async function updateRewardPoints(userId: number, pointsToAdd: number) {
+export async function markNotificationAsRead(notificationId: number) {
+  // Authenticate before any lookup, then enforce ownership (admins may override).
+  await requireUser();
+  const [notif] = await db
+    .select()
+    .from(Notifications)
+    .where(eq(Notifications.id, notificationId))
+    .execute();
+  if (!notif) return;
+  await requireOwnership(notif.userId, { allowRoles: ['admin'] });
   try {
-    const [updatedReward] = await db
-      .update(Rewards)
-      .set({
-        points: sql`${Rewards.points} + ${pointsToAdd}`,
-        updatedAt: new Date()
+    await db.update(Notifications).set({ isRead: true }).where(eq(Notifications.id, notificationId)).execute();
+  } catch (error) {
+    console.error("Error marking notification as read:", error);
+  }
+}
+
+export async function getRewardTransactions() {
+  const me = await requireUser();
+  try {
+    const transactions = await db
+      .select({
+        id: Transactions.id,
+        type: Transactions.type,
+        amount: Transactions.amount,
+        description: Transactions.description,
+        date: Transactions.date,
       })
-      .where(eq(Rewards.user_id, userId))
-      .returning()
+      .from(Transactions)
+      .where(eq(Transactions.userId, me.userId))
+      .orderBy(desc(Transactions.date))
+      .limit(10)
       .execute();
-    return updatedReward;
+
+    return transactions.map(t => ({
+      ...t,
+      date: t.date.toISOString().split('T')[0], // Format date as YYYY-MM-DD
+    }));
   } catch (error) {
-    console.error("Error updating reward points:", error);
-    return null;
+    console.error("Error fetching reward transactions:", error);
+    return [];
   }
 }
 
-export async function createCollectedWaste(reportId: number, collectorId: number) {
+export async function getAvailableRewards() {
+  await requireUser();
+  try {
+    // getRewardTransactions also enforces the session; identity flows from there.
+    const userTransactions = await getRewardTransactions();
+    const userPoints = userTransactions.reduce((total, transaction) => {
+      return transaction.type.startsWith('earned') ? total + transaction.amount : total - transaction.amount;
+    }, 0);
+
+    const dbRewards = await db
+      .select({
+        id: Rewards.id,
+        name: Rewards.name,
+        cost: Rewards.points,
+        description: Rewards.description,
+        collectionInfo: Rewards.collectionInfor,
+      })
+      .from(Rewards)
+      .where(eq(Rewards.isAvailable, true))
+      .execute();
+
+    return [
+      {
+        id: 0, // Special ID for the user's own points balance.
+        name: "Your Points",
+        cost: userPoints,
+        description: "Redeem your earned points",
+        collectionInfo: "Points earned from reporting and collecting waste"
+      },
+      ...dbRewards
+    ];
+  } catch (error) {
+    console.error("Error fetching available rewards:", error);
+    return [];
+  }
+}
+
+export async function getUserBalance(): Promise<number> {
+  await requireUser();
+  const transactions = await getRewardTransactions();
+  const balance = transactions.reduce((acc, transaction) => {
+    return transaction.type.startsWith('earned') ? acc + transaction.amount : acc - transaction.amount;
+  }, 0);
+  return Math.max(balance, 0); // Ensure balance is never negative.
+}
+
+export async function redeemReward(rewardId: number) {
+  const me = await requireUser();
+  try {
+    const userReward = await getOrCreateReward(me.userId) as UserReward | null;
+
+    if (rewardId === 0) {
+      // Redeem all points.
+      const [updatedReward] = await db.update(Rewards)
+        .set({ points: 0, updatedAt: new Date() })
+        .where(eq(Rewards.user_id, me.userId))
+        .returning()
+        .execute();
+
+      if (userReward) {
+        await createTransaction(me.userId, 'redeemed', userReward.points, `Redeemed all points: ${userReward.points}`);
+      }
+
+      return updatedReward;
+    } else {
+      const availableReward = await db.select().from(Rewards).where(eq(Rewards.id, rewardId)).execute();
+
+      if (!userReward || !availableReward[0] || userReward.points < availableReward[0].points) {
+        throw new Error("Insufficient points or invalid reward");
+      }
+
+      const [updatedReward] = await db.update(Rewards)
+        .set({
+          points: sql`${Rewards.points} - ${availableReward[0].points}`,
+          updatedAt: new Date(),
+        })
+        .where(eq(Rewards.user_id, me.userId))
+        .returning()
+        .execute();
+
+      await createTransaction(me.userId, 'redeemed', availableReward[0].points, `Redeemed: ${availableReward[0].name}`);
+
+      return updatedReward;
+    }
+  } catch (error) {
+    console.error("Error redeeming reward:", error);
+    throw error;
+  }
+}
+
+// --- Operator / collection: requires a collection role; collector = session --
+
+export async function getCollectedWastesByCollector() {
+  const me = await requireRole(COLLECTION_ROLES);
+  try {
+    return await db.select().from(CollectedWastes).where(eq(CollectedWastes.collectorId, me.userId)).execute();
+  } catch (error) {
+    console.error("Error fetching collected wastes:", error);
+    return [];
+  }
+}
+
+export async function createCollectedWaste(reportId: number) {
+  const me = await requireRole(COLLECTION_ROLES);
   try {
     const [collectedWaste] = await db
       .insert(CollectedWastes)
       .values({
         reportId,
-        collectorId,
+        collectorId: me.userId,
         collectionDate: new Date(),
       })
       .returning()
@@ -151,52 +265,74 @@ export async function createCollectedWaste(reportId: number, collectorId: number
   }
 }
 
-export async function getCollectedWastesByCollector(collectorId: number) {
+export async function saveCollectedWaste(reportId: number) {
+  const me = await requireRole(COLLECTION_ROLES);
   try {
-    return await db.select().from(CollectedWastes).where(eq(CollectedWastes.collectorId, collectorId)).execute();
-  } catch (error) {
-    console.error("Error fetching collected wastes:", error);
-    return [];
-  }
-}
-
-export async function createNotification(userId: number, message: string, type: NotificationType) {
-  try {
-    const [notification] = await db
-      .insert(Notifications)
-      .values({ userId, message, type })
+    const [collectedWaste] = await db
+      .insert(CollectedWastes)
+      .values({
+        reportId,
+        collectorId: me.userId,
+        collectionDate: new Date(),
+        status: 'verified',
+      })
       .returning()
       .execute();
-    return notification;
+    return collectedWaste;
   } catch (error) {
-    console.error("Error creating notification:", error);
-    return null;
+    console.error("Error saving collected waste:", error);
+    throw error;
   }
 }
 
-export async function getUnreadNotifications(userId: number) {
+export async function updateTaskStatus(reportId: number, newStatus: ReportStatus) {
+  // The acting operator claims the task; collector is the session user, never a
+  // caller-supplied id.
+  const me = await requireRole(COLLECTION_ROLES);
   try {
-    return await db.select().from(Notifications).where(
-      and(
-        eq(Notifications.userId, userId),
-        eq(Notifications.isRead, false)
-      )
-    ).execute();
+    const [updatedReport] = await db
+      .update(Reports)
+      .set({ status: newStatus, collector_id: me.userId })
+      .where(eq(Reports.id, reportId))
+      .returning()
+      .execute();
+    return updatedReport;
   } catch (error) {
-    console.error("Error fetching unread notifications:", error);
-    return [];
+    console.error("Error updating task status:", error);
+    throw error;
   }
 }
 
-export async function markNotificationAsRead(notificationId: number) {
+// saveReward awards points to a *recipient* (a reporter) — the actor is an
+// authorised operator/admin resolved from the session, not the recipient.
+export async function saveReward(recipientUserId: number, amount: number) {
+  await requireRole(COLLECTION_ROLES);
   try {
-    await db.update(Notifications).set({ isRead: true }).where(eq(Notifications.id, notificationId)).execute();
+    const [reward] = await db
+      .insert(Rewards)
+      .values({
+        user_id: recipientUserId,
+        name: 'Waste Collection Reward',
+        collectionInfor: 'Points earned from waste collection',
+        points: amount,
+        isAvailable: true,
+      })
+      .returning()
+      .execute();
+
+    await createTransaction(recipientUserId, 'earned_collect', amount, 'Points earned for collecting waste');
+
+    return reward;
   } catch (error) {
-    console.error("Error marking notification as read:", error);
+    console.error("Error saving reward:", error);
+    throw error;
   }
 }
+
+// --- Review / oversight: supervisor or admin --------------------------------
 
 export async function getPendingReports() {
+  await requireRole(REVIEW_ROLES);
   try {
     return await db.select().from(Reports).where(eq(Reports.status, "pending")).execute();
   } catch (error) {
@@ -206,6 +342,7 @@ export async function getPendingReports() {
 }
 
 export async function updateReportStatus(reportId: number, status: ReportStatus) {
+  await requireRole(REVIEW_ROLES);
   try {
     const [updatedReport] = await db
       .update(Reports)
@@ -220,15 +357,38 @@ export async function updateReportStatus(reportId: number, status: ReportStatus)
   }
 }
 
-export async function getRecentReports(limit: number = 10) {
+export async function getAllRewards() {
+  await requireRole(REVIEW_ROLES);
   try {
-    const reports = await db
+    return await db
+      .select({
+        id: Rewards.id,
+        userId: Rewards.user_id,
+        points: Rewards.points,
+        createdAt: Rewards.createdAt,
+        userName: Users.name,
+      })
+      .from(Rewards)
+      .leftJoin(Users, eq(Rewards.user_id, Users.id))
+      .orderBy(desc(Rewards.points))
+      .execute();
+  } catch (error) {
+    console.error("Error fetching all rewards:", error);
+    return [];
+  }
+}
+
+// --- Operations views: any collection role ----------------------------------
+
+export async function getRecentReports(limit: number = 10) {
+  await requireRole(OPS_VIEW_ROLES);
+  try {
+    return await db
       .select()
       .from(Reports)
       .orderBy(desc(Reports.created_at))
       .limit(limit)
       .execute();
-    return reports;
   } catch (error) {
     console.error("Error fetching recent reports:", error);
     return [];
@@ -236,6 +396,7 @@ export async function getRecentReports(limit: number = 10) {
 }
 
 export async function getWasteCollectionTasks(limit: number = 20) {
+  await requireRole(OPS_VIEW_ROLES);
   try {
     const tasks = await db
       .select({
@@ -259,246 +420,4 @@ export async function getWasteCollectionTasks(limit: number = 20) {
     console.error("Error fetching waste collection tasks:", error);
     return [];
   }
-}
-
-export async function saveReward(userId: number, amount: number) {
-  try {
-    const [reward] = await db
-      .insert(Rewards)
-      .values({
-        user_id: userId,
-        name: 'Waste Collection Reward',
-        collectionInfor: 'Points earned from waste collection',
-        points: amount,
-        isAvailable: true,
-      })
-      .returning()
-      .execute();
-
-    // Create a transaction for this reward
-    await createTransaction(userId, 'earned_collect', amount, 'Points earned for collecting waste');
-
-    return reward;
-  } catch (error) {
-    console.error("Error saving reward:", error);
-    throw error;
-  }
-}
-
-export async function saveCollectedWaste(reportId: number, collectorId: number) {
-  try {
-    const [collectedWaste] = await db
-      .insert(CollectedWastes)
-      .values({
-        reportId,
-        collectorId,
-        collectionDate: new Date(),
-        status: 'verified',
-      })
-      .returning()
-      .execute();
-    return collectedWaste;
-  } catch (error) {
-    console.error("Error saving collected waste:", error);
-    throw error;
-  }
-}
-
-export async function updateTaskStatus(reportId: number, newStatus: ReportStatus, collectorId?: number) {
-  try {
-    const updateData: { status: ReportStatus; collector_id?: number } = { status: newStatus };
-    if (collectorId !== undefined) {
-      updateData.collector_id = collectorId;
-    }
-    const [updatedReport] = await db
-      .update(Reports)
-      .set(updateData)
-      .where(eq(Reports.id, reportId))
-      .returning()
-      .execute();
-    return updatedReport;
-  } catch (error) {
-    console.error("Error updating task status:", error);
-    throw error;
-  }
-}
-
-export async function getAllRewards() {
-  try {
-    const rewards = await db
-      .select({
-        id: Rewards.id,
-        userId: Rewards.user_id,
-        points: Rewards.points,
-        createdAt: Rewards.createdAt,
-        userName: Users.name,
-      })
-      .from(Rewards)
-      .leftJoin(Users, eq(Rewards.user_id, Users.id))
-      .orderBy(desc(Rewards.points))
-      .execute();
-
-    return rewards;
-  } catch (error) {
-    console.error("Error fetching all rewards:", error);
-    return [];
-  }
-}
-
-export async function getRewardTransactions(userId: number) {
-  try {
-    console.log('Fetching transactions for user ID:', userId)
-    const transactions = await db
-      .select({
-        id: Transactions.id,
-        type: Transactions.type,
-        amount: Transactions.amount,
-        description: Transactions.description,
-        date: Transactions.date,
-      })
-      .from(Transactions)
-      .where(eq(Transactions.userId, userId))
-      .orderBy(desc(Transactions.date))
-      .limit(10)
-      .execute();
-
-    console.log('Raw transactions from database:', transactions)
-
-    const formattedTransactions = transactions.map(t => ({
-      ...t,
-      date: t.date.toISOString().split('T')[0], // Format date as YYYY-MM-DD
-    }));
-
-    console.log('Formatted transactions:', formattedTransactions)
-    return formattedTransactions;
-  } catch (error) {
-    console.error("Error fetching reward transactions:", error);
-    return [];
-  }
-}
-
-export async function getAvailableRewards(userId: number) {
-  try {
-    console.log('Fetching available rewards for user:', userId);
-    
-    // Get user's total points
-    const userTransactions = await getRewardTransactions(userId);
-    const userPoints = userTransactions.reduce((total, transaction) => {
-      return transaction.type.startsWith('earned') ? total + transaction.amount : total - transaction.amount;
-    }, 0);
-
-    console.log('User total points:', userPoints);
-
-    // Get available rewards from the database
-    const dbRewards = await db
-      .select({
-        id: Rewards.id,
-        name: Rewards.name,
-        cost: Rewards.points,
-        description: Rewards.description,
-        collectionInfo: Rewards.collectionInfor,
-      })
-      .from(Rewards)
-      .where(eq(Rewards.isAvailable, true))
-      .execute();
-
-    console.log('Rewards from database:', dbRewards);
-
-    // Combine user points and database rewards
-    const allRewards = [
-      {
-        id: 0, // Use a special ID for user's points
-        name: "Your Points",
-        cost: userPoints,
-        description: "Redeem your earned points",
-        collectionInfo: "Points earned from reporting and collecting waste"
-      },
-      ...dbRewards
-    ];
-
-    console.log('All available rewards:', allRewards);
-    return allRewards;
-  } catch (error) {
-    console.error("Error fetching available rewards:", error);
-    return [];
-  }
-}
-
-export async function createTransaction(userId: number, type: 'earned_report' | 'earned_collect' | 'redeemed', amount: number, description: string) {
-  try {
-    const [transaction] = await db
-      .insert(Transactions)
-      .values({ userId, type, amount, description })
-      .returning()
-      .execute();
-    return transaction;
-  } catch (error) {
-    console.error("Error creating transaction:", error);
-    throw error;
-  }
-}
-
-interface UserReward {
-  id: number;
-  user_id: number;
-  points: number;
-  name: string;
-  isAvailable: boolean;
-}
-
-export async function redeemReward(userId: number, rewardId: number) {
-  try {
-    const userReward = await getOrCreateReward(userId) as UserReward | null;
-
-    if (rewardId === 0) {
-      // Redeem all points
-      const [updatedReward] = await db.update(Rewards)
-        .set({
-          points: 0,
-          updatedAt: new Date(),
-        })
-        .where(eq(Rewards.user_id, userId))
-        .returning()
-        .execute();
-
-      // Create a transaction for this redemption
-      if (userReward) {
-        await createTransaction(userId, 'redeemed', userReward.points, `Redeemed all points: ${userReward.points}`);
-      }
-
-      return updatedReward;
-    } else {
-      // Existing logic for redeeming specific rewards
-      const availableReward = await db.select().from(Rewards).where(eq(Rewards.id, rewardId)).execute();
-
-      if (!userReward || !availableReward[0] || userReward.points < availableReward[0].points) {
-        throw new Error("Insufficient points or invalid reward");
-      }
-
-      const [updatedReward] = await db.update(Rewards)
-        .set({
-          points: sql`${Rewards.points} - ${availableReward[0].points}`,
-          updatedAt: new Date(),
-        })
-        .where(eq(Rewards.user_id, userId))
-        .returning()
-        .execute();
-
-      // Create a transaction for this redemption
-      await createTransaction(userId, 'redeemed', availableReward[0].points, `Redeemed: ${availableReward[0].name}`);
-
-      return updatedReward;
-    }
-  } catch (error) {
-    console.error("Error redeeming reward:", error);
-    throw error;
-  }
-}
-
-export async function getUserBalance(userId: number): Promise<number> {
-  const transactions = await getRewardTransactions(userId);
-  const balance = transactions.reduce((acc, transaction) => {
-    return transaction.type.startsWith('earned') ? acc + transaction.amount : acc - transaction.amount
-  }, 0);
-  return Math.max(balance, 0); // Ensure balance is never negative
 }
