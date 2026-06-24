@@ -10,9 +10,12 @@ export const SESSION_COOKIE = isProd ? "__Host-session" : "session";
 
 const MAX_AGE_SECONDS = 60 * 60 * 24 * 7; // 7 days
 
+// The session cookie is an identity anchor only: it carries the signed userId
+// and nothing else. Roles are resolved from the database on each authorization
+// check (see lib/rbac.ts) so they are never stale and a revoked grant takes
+// effect immediately — the cookie is trusted for *who*, never for *what*.
 export interface SessionPayload {
   userId: number;
-  role: string;
 }
 
 function secretKey(): Uint8Array {
@@ -24,7 +27,7 @@ function secretKey(): Uint8Array {
 }
 
 export async function createSessionToken(payload: SessionPayload): Promise<string> {
-  return new SignJWT({ userId: payload.userId, role: payload.role })
+  return new SignJWT({ userId: payload.userId })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime(`${MAX_AGE_SECONDS}s`)
@@ -38,10 +41,7 @@ export async function getServerSession(): Promise<SessionPayload | null> {
   try {
     const { payload } = await jwtVerify(token, secretKey());
     if (typeof payload.userId !== "number") return null;
-    return {
-      userId: payload.userId,
-      role: typeof payload.role === "string" ? payload.role : "citizen",
-    };
+    return { userId: payload.userId };
   } catch {
     // Tampered, expired, or wrong-secret tokens resolve to "no session".
     return null;
