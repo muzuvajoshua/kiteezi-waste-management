@@ -19,6 +19,6 @@ export default defineConfig({
   },
   resolve: {
     // Match only `@/…` so scoped npm packages (e.g. @vitest/…) are untouched.
-    alias: [{ find: /^@\//, replacement: `${root}/` }],
+    alias: [{ find: /^@\//, replacement: `${root}/src/` }],
   },
 });

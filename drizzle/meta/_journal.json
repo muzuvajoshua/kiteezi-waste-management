@@ -36,6 +36,13 @@
       "when": 1782288688421,
       "tag": "0004_add_roles_rbac",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1782306022321,
+      "tag": "0005_reward_ledger",
+      "breakpoints": true
     }
   ]
 }

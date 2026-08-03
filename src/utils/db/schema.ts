@@ -1,4 +1,5 @@
-import {integer, varchar, pgTable,serial,text, jsonb, timestamp,boolean, index, pgEnum, unique} from 'drizzle-orm/pg-core';
+import {integer, varchar, pgTable,serial,text, jsonb, timestamp,boolean, index, pgEnum, unique, check} from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
 
 // ---------------------------------------------------------------------------
 // Enums (KWM-015) — replace free-text status/type columns with constrained
@@ -145,4 +146,47 @@ export const UserRoles = pgTable('user_roles', {
 }, (table) => ({
     userIdIdx: index('user_roles_user_id_idx').on(table.userId),
     userRoleUnique: unique('user_roles_user_id_role_id_unique').on(table.userId, table.roleId),
+}));
+
+// ---------------------------------------------------------------------------
+// Reward ledger (KWM-011) — replaces the conflated `rewards`/`transactions`
+// model. `point_transactions` is the append-only signed ledger (source of
+// truth: earn>0, redeem<0); `user_reward_balance` is the materialised balance
+// kept in lockstep inside a transaction; `reward_catalog` holds redeemable
+// items. The legacy `Rewards`/`Transactions` tables remain until a follow-up
+// migration retires them after a verification soak.
+// ---------------------------------------------------------------------------
+export const pointKindEnum = pgEnum('point_kind', ['earn_report', 'earn_collect', 'redeem', 'adjust']);
+export type PointKind = (typeof pointKindEnum.enumValues)[number];
+
+export const RewardCatalog = pgTable('reward_catalog', {
+    id: serial('id').primaryKey(),
+    name: varchar('name', { length: 255 }).notNull(),
+    description: text('description'),
+    costPoints: integer('cost_points').notNull(),
+    isAvailable: boolean('is_available').notNull().default(true),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (table) => ({
+    costNonNeg: check('reward_catalog_cost_points_nonneg', sql`${table.costPoints} >= 0`),
+}));
+
+export const UserRewardBalance = pgTable('user_reward_balance', {
+    userId: integer('user_id').primaryKey().references(() => Users.id, { onDelete: 'cascade' }),
+    points: integer('points').notNull().default(0),
+    updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (table) => ({
+    pointsNonNeg: check('user_reward_balance_points_nonneg', sql`${table.points} >= 0`),
+}));
+
+export const PointTransactions = pgTable('point_transactions', {
+    id: serial('id').primaryKey(),
+    userId: integer('user_id').notNull().references(() => Users.id, { onDelete: 'cascade' }),
+    kind: pointKindEnum('kind').notNull(),
+    amount: integer('amount').notNull(), // signed: earn > 0, redeem < 0
+    relatedReportId: integer('related_report_id').references(() => Reports.id),
+    relatedRedemptionId: integer('related_redemption_id'),
+    idempotencyKey: varchar('idempotency_key', { length: 255 }).unique(),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (table) => ({
+    userCreatedAtIdx: index('point_transactions_user_id_created_at_idx').on(table.userId, table.createdAt),
 }));
