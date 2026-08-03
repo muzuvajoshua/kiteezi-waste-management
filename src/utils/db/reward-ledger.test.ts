@@ -53,8 +53,9 @@ describe('recordPointTransaction — per-operation invariant', () => {
     const applied = await recordPointTransaction(tx, { userId: 7, kind: 'earn_report', amount: 10 });
     expect(applied).toBe(true);
     // The ledger delta and the balance delta are identical → SUM(ledger) stays == balance.
-    expect(captured.ledgerValues.amount).toBe(10);
-    expect(captured.balanceValues.points).toBe(10);
+    // Non-null: `applied === true` above already proves both were captured.
+    expect(captured.ledgerValues!.amount).toBe(10);
+    expect(captured.balanceValues!.points).toBe(10);
     expect(captured.balanceUpserted).toBe(true);
   });
 
