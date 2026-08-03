@@ -16,21 +16,27 @@ import {
 import { MAX_POINTS } from './schemas/common';
 
 type RecordTx = Parameters<typeof recordPointTransaction>[0];
+type PointTransactionInsert = typeof PointTransactions.$inferInsert;
+type UserRewardBalanceInsert = typeof UserRewardBalance.$inferInsert;
 
 // Minimal fake transaction that records what was written to the ledger and the
 // balance, and lets the test control whether the ledger insert "conflicted".
 function makeTx(ledgerReturning: { id: number }[]) {
-  const captured: { ledgerValues?: any; balanceValues?: any; balanceUpserted?: boolean } = {};
+  const captured: {
+    ledgerValues?: PointTransactionInsert;
+    balanceValues?: UserRewardBalanceInsert;
+    balanceUpserted?: boolean;
+  } = {};
   const tx = {
     insert(table: unknown) {
       return {
-        values(v: any) {
+        values(v: PointTransactionInsert | UserRewardBalanceInsert) {
           if (table === PointTransactions) {
-            captured.ledgerValues = v;
+            captured.ledgerValues = v as PointTransactionInsert;
             return { onConflictDoNothing: () => ({ returning: () => Promise.resolve(ledgerReturning) }) };
           }
           if (table === UserRewardBalance) {
-            captured.balanceValues = v;
+            captured.balanceValues = v as UserRewardBalanceInsert;
             return { onConflictDoUpdate: () => { captured.balanceUpserted = true; return Promise.resolve(); } };
           }
           throw new Error('unexpected table');
