@@ -1,27 +1,20 @@
 import { describe, it, expect } from 'vitest';
 import { ZodError } from 'zod';
 import { validate, ValidationError } from '@/lib/validation';
-import { collectedWasteSchema } from './index';
+import { idSchema } from './common';
 
-const ok = (schema: Parameters<typeof validate>[0], input: unknown) =>
-  expect(schema.safeParse(input).success).toBe(true);
-const bad = (schema: Parameters<typeof validate>[0], input: unknown) =>
-  expect(schema.safeParse(input).success).toBe(false);
-
-describe('id-only schemas', () => {
-  it('collectedWasteSchema accepts positive, rejects non-positive', () => {
-    ok(collectedWasteSchema, { reportId: 1 });
-    bad(collectedWasteSchema, { reportId: 0 });
-  });
-});
-
+// The reward/auth/notification/report/collection-specific schemas that
+// used to be exercised here have all moved to their own modules'
+// presentation-layer tests. What's left in this barrel is common.ts's
+// shared primitives — validate() is exercised directly against one of
+// them rather than against a schema that no longer lives here.
 describe('validate() helper', () => {
   it('returns parsed data on success', () => {
-    expect(validate(collectedWasteSchema, { reportId: 4 })).toEqual({ reportId: 4 });
+    expect(validate(idSchema, 4)).toEqual(4);
   });
   it('throws ValidationError (not a raw ZodError) on failure', () => {
     try {
-      validate(collectedWasteSchema, { reportId: 0 });
+      validate(idSchema, 0);
       throw new Error('should have thrown');
     } catch (e) {
       expect(e).toBeInstanceOf(ValidationError);
