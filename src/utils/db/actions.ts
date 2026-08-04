@@ -5,7 +5,7 @@ import { txdb } from './txClient';
 import { Reports, CollectedWastes, Notifications } from './schema';
 import type { ReportStatus, WasteType, Role } from './schema';
 import { eq, and, desc } from 'drizzle-orm';
-import { requireUser, requireRole, requireOwnership } from '@/lib/rbac';
+import { requireUser, requireRole, requireOwnership } from '@/modules/auth/presentation/auth-guards';
 import { createNotification } from './internal';
 import { validate } from '@/lib/validation';
 import { earnPoints } from '@/modules/rewards/application/earn-points.usecase';

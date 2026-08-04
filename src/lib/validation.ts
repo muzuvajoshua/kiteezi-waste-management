@@ -3,7 +3,8 @@ import { z, ZodError } from 'zod';
 // KWM-017 — shared validation layer.
 //
 // `ValidationError` is the third member of the action-boundary error taxonomy
-// (alongside UnauthorizedError / ForbiddenError in lib/rbac.ts). Server actions
+// (alongside UnauthenticatedError / ForbiddenError in
+// modules/auth/domain/errors.ts). Server actions
 // validate their inputs *after* the auth guard and throw this on bad input; the
 // thrown error rejects the action promise so the UI can surface a toast.
 // KWM-019 will map this to a typed Result `{ ok:false, code:'VALIDATION', … }`.
