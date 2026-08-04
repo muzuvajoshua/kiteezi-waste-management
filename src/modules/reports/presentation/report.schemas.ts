@@ -7,9 +7,11 @@ import {
   imageUrlSchema,
   wasteTypeSchema,
   reportStatusSchema,
-} from './common';
+} from '@/utils/db/schemas/common';
 
-// KWM-017 — report action input schemas.
+// KWM-017 — report action input schemas. Relocated from
+// utils/db/schemas/reports.ts as part of the reports module extraction;
+// content unchanged.
 //
 // createReport no longer accepts `verificationResult` or the unused `type`
 // param: the AI verdict must not be client-trusted (it is set server-side as
