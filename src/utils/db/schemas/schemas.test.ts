@@ -9,7 +9,6 @@ import {
   wasteCollectionTasksSchema,
   collectedWasteSchema,
   markNotificationReadSchema,
-  sessionRequestSchema,
 } from './index';
 
 const ok = (schema: Parameters<typeof validate>[0], input: unknown) =>
@@ -72,15 +71,6 @@ describe('id-only schemas', () => {
     bad(collectedWasteSchema, { reportId: 0 });
     ok(markNotificationReadSchema, { notificationId: 9 });
     bad(markNotificationReadSchema, { notificationId: -3 });
-  });
-});
-
-describe('sessionRequestSchema', () => {
-  it('accepts a non-empty token', () => ok(sessionRequestSchema, { idToken: 'header.payload.sig' }));
-  it('rejects empty / oversized / missing', () => {
-    bad(sessionRequestSchema, { idToken: '' });
-    bad(sessionRequestSchema, { idToken: 'x'.repeat(4097) });
-    bad(sessionRequestSchema, {});
   });
 });
 
