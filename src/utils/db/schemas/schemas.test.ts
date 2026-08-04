@@ -8,7 +8,6 @@ import {
   recentReportsSchema,
   wasteCollectionTasksSchema,
   collectedWasteSchema,
-  markNotificationReadSchema,
 } from './index';
 
 const ok = (schema: Parameters<typeof validate>[0], input: unknown) =>
@@ -66,11 +65,9 @@ describe('pagination limit schemas', () => {
 });
 
 describe('id-only schemas', () => {
-  it('collectedWaste / markNotificationRead accept positive, reject non-positive', () => {
+  it('collectedWasteSchema accepts positive, rejects non-positive', () => {
     ok(collectedWasteSchema, { reportId: 1 });
     bad(collectedWasteSchema, { reportId: 0 });
-    ok(markNotificationReadSchema, { notificationId: 9 });
-    bad(markNotificationReadSchema, { notificationId: -3 });
   });
 });
 
