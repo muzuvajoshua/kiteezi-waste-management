@@ -1,6 +1,6 @@
 "use server";
 
-import { requireUser, requireRole } from '@/lib/rbac';
+import { requireUser, requireRole } from '@/modules/auth/presentation/auth-guards';
 import { validate } from '@/lib/validation';
 import type { Role } from '@/utils/db/schema';
 import { rewardRepository, rewardCatalogRepository, rewardTransactionManager } from './composition';
