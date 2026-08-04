@@ -25,9 +25,9 @@ import { Badge } from "./ui/badge";
 
 import {
   getUnreadNotifications,
-  getUserBalance,
   markNotificationAsRead,
 } from "@/utils/db/actions";
+import { getUserBalance } from "@/modules/rewards/presentation/reward.actions";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { useWeb3Auth } from "@/components/Web3AuthProvider";
 import { useSession } from "@/hooks/useSession";
