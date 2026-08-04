@@ -2,10 +2,10 @@
 
 import { db } from './dbConfig';
 import { txdb } from './txClient';
-import { Reports, CollectedWastes, Notifications } from './schema';
+import { Reports, CollectedWastes } from './schema';
 import type { ReportStatus, WasteType, Role } from './schema';
-import { eq, and, desc } from 'drizzle-orm';
-import { requireUser, requireRole, requireOwnership } from '@/modules/auth/presentation/auth-guards';
+import { eq, desc } from 'drizzle-orm';
+import { requireUser, requireRole } from '@/modules/auth/presentation/auth-guards';
 import { createNotification } from './internal';
 import { validate } from '@/lib/validation';
 import { earnPoints } from '@/modules/rewards/application/earn-points.usecase';
@@ -17,7 +17,6 @@ import {
   recentReportsSchema,
   wasteCollectionTasksSchema,
   collectedWasteSchema,
-  markNotificationReadSchema,
 } from './schemas';
 
 // KWM-009 — every exported function is a "use server" action (a public RPC
@@ -99,39 +98,6 @@ export async function getReportsByUserId() {
   } catch (error) {
     console.error("Error fetching reports:", error);
     return [];
-  }
-}
-
-export async function getUnreadNotifications() {
-  const me = await requireUser();
-  try {
-    return await db.select().from(Notifications).where(
-      and(
-        eq(Notifications.userId, me.userId),
-        eq(Notifications.isRead, false)
-      )
-    ).execute();
-  } catch (error) {
-    console.error("Error fetching unread notifications:", error);
-    return [];
-  }
-}
-
-export async function markNotificationAsRead(notificationId: number) {
-  // Authenticate before any lookup, then enforce ownership (admins may override).
-  await requireUser();
-  const { notificationId: id } = validate(markNotificationReadSchema, { notificationId });
-  const [notif] = await db
-    .select()
-    .from(Notifications)
-    .where(eq(Notifications.id, id))
-    .execute();
-  if (!notif) return;
-  await requireOwnership(notif.userId, { allowRoles: ['admin'] });
-  try {
-    await db.update(Notifications).set({ isRead: true }).where(eq(Notifications.id, id)).execute();
-  } catch (error) {
-    console.error("Error marking notification as read:", error);
   }
 }
 
