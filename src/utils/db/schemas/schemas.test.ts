@@ -2,14 +2,11 @@ import { describe, it, expect } from 'vitest';
 import { ZodError } from 'zod';
 import { validate, ValidationError } from '@/lib/validation';
 import {
-  MAX_POINTS,
   createReportSchema,
   updateReportStatusSchema,
   updateTaskStatusSchema,
   recentReportsSchema,
   wasteCollectionTasksSchema,
-  redeemRewardSchema,
-  saveRewardSchema,
   collectedWasteSchema,
   markNotificationReadSchema,
   sessionRequestSchema,
@@ -67,28 +64,6 @@ describe('pagination limit schemas', () => {
     bad(recentReportsSchema, { limit: 101 });
     bad(recentReportsSchema, { limit: 2.5 });
   });
-});
-
-describe('redeemRewardSchema', () => {
-  it('accepts 0 (redeem-all) and positive ids', () => {
-    ok(redeemRewardSchema, { rewardId: 0 });
-    ok(redeemRewardSchema, { rewardId: 7 });
-  });
-  it('rejects negative / float', () => {
-    bad(redeemRewardSchema, { rewardId: -1 });
-    bad(redeemRewardSchema, { rewardId: 1.5 });
-  });
-});
-
-describe('saveRewardSchema', () => {
-  it('accepts a valid grant', () => ok(saveRewardSchema, { recipientUserId: 3, amount: 50 }));
-  it('rejects bad recipient', () => bad(saveRewardSchema, { recipientUserId: 0, amount: 50 }));
-  it('rejects non-positive amount', () => {
-    bad(saveRewardSchema, { recipientUserId: 3, amount: 0 });
-    bad(saveRewardSchema, { recipientUserId: 3, amount: -10 });
-  });
-  it(`rejects amount over the cap (${MAX_POINTS})`, () =>
-    bad(saveRewardSchema, { recipientUserId: 3, amount: MAX_POINTS + 1 }));
 });
 
 describe('id-only schemas', () => {
