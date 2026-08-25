@@ -7,6 +7,69 @@
 
 ---
 
+## 0. Update log
+
+The body of this report is the **2026-08-25 snapshot** and is left intact as a
+point-in-time record. This section supersedes specific claims in it. Anything
+not listed here still stands.
+
+### Resolved since the snapshot
+
+| Item | Was | Now | Evidence |
+|---|---|---|---|
+| §9 P0 #1 — Web3Auth token not audience-bound | open | **fixed** | #105. Audience validation mandatory and fail-closed; issuer implemented, config-gated. 17 tests, mutation-verified. |
+| §9 P0 #2 — authorization enforcement untested | open | **fixed** | #106. 95 tests over all 18 actions; six guard sabotages each confirmed failing. |
+| §5.3 / §7 — coverage config measuring 2 files | open | **fixed** | #107. Measures `src/**`; real baseline 70.00/62.82/67.38/69.46; per-layer floors enforced in CI. |
+| §7 — test count | 147 / 47 files | **259 / 52 files** | `npm run test:coverage` |
+| §9 P2 — GitHub board misleading | open | **reconciled** | KWM-011/012/020 (#18/#19/#27) and KWM-060 (#70) closed with evidence; #108–#112 filed for gaps that had no issue. |
+
+### Corrections to this report
+
+Two factual errors, and one judgement that was too generous:
+
+1. **KWM-018 (#25) was listed DONE in Appendix A. It is PARTIAL.** AC 1 (every
+   multi-write action uses a transaction) holds. AC 2 — *"failure-injection test
+   confirms rollback"* — does not: the only failure test injects a failing
+   *notification* repository and asserts the report **survives**, which is the
+   opposite property. A real rollback assertion is impossible against
+   `InMemoryReportTransactionManager` (it just invokes the callback, so the
+   assertion would pass vacuously). **Blocked on KWM-063.**
+
+2. **Vercel exists.** §3 recorded Infrastructure as NOT STARTED and CI/CD as
+   "no CD, no deploy target", and Appendix A called KWM-005 BLOCKED because
+   "no Vercel project exists yet". Wrong: Vercel is connected and produced a
+   successful preview deployment on every one of #104–#107. The audit missed it
+   because the integration surfaces only as a GitHub App check on an open PR,
+   and there were none when it ran — nothing in the repo (no `vercel.json`, no
+   workflow) reveals it. Infrastructure is **PARTIAL**, not NOT STARTED.
+   Whether production environments and real env vars are configured remains
+   **UNKNOWN** — a green preview build proves nothing there, since CI supplies
+   throwaway placeholders and the build never opens a connection.
+
+3. **"Epic 1 overall: DONE — mark complete" was too generous.** Its *roadmap
+   deliverables* are shipped, but four of its issues remain legitimately open:
+   KWM-005 (#12, config work outstanding), KWM-018 (#25, per correction 1),
+   KWM-019 (#26, not started), KWM-021 (#28, folded into #112). Epic 1 has
+   **not** been marked complete.
+
+### Still true, and worth re-reading
+
+§5.1 (no product surface — the build still emits one empty page), §5.4 (no test
+executes SQL — now quantified: **Drizzle adapters at 12.7% statements**), §5.5
+(`audit()` still has zero call sites — #108), §5.6 (`validateStatusTransition`
+still a pass-through — #111), §5.8 (logout does not revoke the session — #109),
+§8.3 (`KWM-019` action return shapes — the top architectural debt, and cheapest
+to fix immediately *before* the vertical slice adds call sites).
+
+### Next step unchanged
+
+§10.5 — the `/report → /my-reports` vertical slice. Its stated dependencies
+(steps 1–2) are now satisfied. Local `.env` has neither `DATABASE_URL` nor
+`SESSION_SECRET`, so validating it end-to-end against real Postgres needs those
+first (#110, KWM-005, KWM-068).
+
+---
+
 ## 1. Executive Status
 
 **Overall: YELLOW**
