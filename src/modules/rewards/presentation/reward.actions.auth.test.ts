@@ -1,6 +1,9 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { UnauthenticatedError, ForbiddenError } from '@/modules/auth/domain/errors';
-import { authHarness } from '@/modules/auth/presentation/action-auth.test-support';
+import {
+  authHarness,
+  expectAdmitted,
+  expectRefused,
+} from '@/modules/auth/presentation/action-auth.test-support';
 
 // Authorization enforcement at the ACTION boundary for the rewards module.
 // See report.actions.auth.test.ts for why the composition root is the seam.
@@ -56,23 +59,12 @@ async function actions(): Promise<Actions> {
   return import('./reward.actions');
 }
 
-/** See report.actions.auth.test.ts — only auth refusals disqualify. */
-async function expectAdmitted(promise: Promise<unknown>): Promise<void> {
-  await promise.catch((error: unknown) => {
-    if (error instanceof UnauthenticatedError || error instanceof ForbiddenError) {
-      throw new Error(
-        `Expected the caller to be admitted, but was refused with ${(error as Error).name}: ${(error as Error).message}`
-      );
-    }
-  });
-}
-
 describe('reward.actions authorization', () => {
   describe('every action rejects an unauthenticated caller', () => {
     for (const { name, call } of ACTIONS) {
       it(`${name} throws UnauthenticatedError with no session`, async () => {
         await auth.signOut();
-        await expect(call(await actions())).rejects.toBeInstanceOf(UnauthenticatedError);
+        await expectRefused(call(await actions()), 'UNAUTHENTICATED');
       });
     }
   });
@@ -85,7 +77,7 @@ describe('reward.actions authorization', () => {
       for (const role of denied) {
         it(`${name} throws ForbiddenError for a ${role}`, async () => {
           await auth.signInAs({ roles: [role] });
-          await expect(call(await actions())).rejects.toBeInstanceOf(ForbiddenError);
+          await expectRefused(call(await actions()), 'FORBIDDEN');
         });
       }
     }
@@ -121,14 +113,12 @@ describe('reward.actions authorization', () => {
   describe('minting points is restricted to collection roles', () => {
     it('refuses a citizen trying to award points', async () => {
       await auth.signInAs({ userId: 1, roles: ['citizen'] });
-      await expect((await actions()).saveReward(1, 1_000_000)).rejects.toBeInstanceOf(
-        ForbiddenError
-      );
+      await expectRefused((await actions()).saveReward(1, 1_000_000), 'FORBIDDEN');
     });
 
     it('refuses a dump_op trying to award points', async () => {
       await auth.signInAs({ roles: ['dump_op'] });
-      await expect((await actions()).saveReward(2, 50)).rejects.toBeInstanceOf(ForbiddenError);
+      await expectRefused((await actions()).saveReward(2, 50), 'FORBIDDEN');
     });
 
     it('admits an operator', async () => {
@@ -143,7 +133,7 @@ describe('reward.actions authorization', () => {
       const mod = await actions();
 
       await expectAdmitted(mod.saveReward(2, 10));
-      await expect(mod.getAllRewards()).rejects.toBeInstanceOf(ForbiddenError);
+      await expectRefused(mod.getAllRewards(), 'FORBIDDEN');
     });
 
     it('a supervisor may do both', async () => {
@@ -166,7 +156,7 @@ describe('reward.actions authorization', () => {
 
       await auth.signInAs({ userId: 7, roles: ['citizen'] });
 
-      expect(await (await actions()).getUserBalance()).toBe(250);
+      expect(await (await actions()).getUserBalance()).toEqual({ ok: true, value: 250 });
     });
   });
 });
