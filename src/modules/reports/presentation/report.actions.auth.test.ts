@@ -1,6 +1,9 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { UnauthenticatedError, ForbiddenError } from '@/modules/auth/domain/errors';
-import { authHarness } from '@/modules/auth/presentation/action-auth.test-support';
+import {
+  authHarness,
+  expectAdmitted,
+  expectRefused,
+} from '@/modules/auth/presentation/action-auth.test-support';
 
 // Authorization enforcement at the ACTION boundary.
 //
@@ -74,31 +77,12 @@ async function actions(): Promise<Actions> {
   return import('./report.actions');
 }
 
-/**
- * Asserts the call was not refused by an authorization guard.
- *
- * Deliberately not "resolves": several actions legitimately fail for data
- * reasons under these fakes (e.g. report id 1 is not seeded), and that is
- * irrelevant to authorization. Only UnauthenticatedError/ForbiddenError
- * disqualify — so an over-strict guard is caught, while unrelated data
- * failures do not produce false alarms.
- */
-async function expectAdmitted(promise: Promise<unknown>): Promise<void> {
-  await promise.catch((error: unknown) => {
-    if (error instanceof UnauthenticatedError || error instanceof ForbiddenError) {
-      throw new Error(
-        `Expected the caller to be admitted, but was refused with ${(error as Error).name}: ${(error as Error).message}`
-      );
-    }
-  });
-}
-
 describe('report.actions authorization', () => {
   describe('every action rejects an unauthenticated caller', () => {
     for (const { name, call } of ACTIONS) {
       it(`${name} throws UnauthenticatedError with no session`, async () => {
         await auth.signOut();
-        await expect(call(await actions())).rejects.toBeInstanceOf(UnauthenticatedError);
+        await expectRefused(call(await actions()), 'UNAUTHENTICATED');
       });
     }
   });
@@ -111,7 +95,7 @@ describe('report.actions authorization', () => {
       for (const role of denied) {
         it(`${name} throws ForbiddenError for a ${role}`, async () => {
           await auth.signInAs({ roles: [role] });
-          await expect(call(await actions())).rejects.toBeInstanceOf(ForbiddenError);
+          await expectRefused(call(await actions()), 'FORBIDDEN');
         });
       }
     }
@@ -154,7 +138,7 @@ describe('report.actions authorization', () => {
       const mod = await actions();
 
       await expectAdmitted(mod.getWasteCollectionTasks());
-      await expect(mod.getPendingReports()).rejects.toBeInstanceOf(ForbiddenError);
+      await expectRefused(mod.getPendingReports(), 'FORBIDDEN');
     });
 
     it('a supervisor may do both', async () => {
@@ -188,7 +172,9 @@ describe('report.actions authorization', () => {
 
       const mine = await (await actions()).getReportsByUserId();
 
-      expect(mine.map((r) => r.id)).toEqual([1]);
+      expect(mine.ok).toBe(true);
+      if (!mine.ok) return;
+      expect(mine.value.map((r) => r.id)).toEqual([1]);
     });
   });
 });
