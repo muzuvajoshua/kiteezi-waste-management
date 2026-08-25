@@ -28,6 +28,8 @@ import {
   markNotificationAsRead,
 } from "@/modules/notifications/presentation/notification.actions";
 import { getUserBalance } from "@/modules/rewards/presentation/reward.actions";
+import toast from "react-hot-toast";
+import { actionErrorMessage } from "@/lib/action-error";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { useWeb3Auth } from "@/components/Web3AuthProvider";
 import { useSession } from "@/hooks/useSession";
@@ -61,8 +63,17 @@ export default function Header({ onMenuClick }: HeaderProps) {
   useEffect(() => {
     const fetchNotifications = async () => {
       if (!sessionUser) return;
-      const unReadNotifications = await getUnreadNotifications();
-      setNotification(unReadNotifications);
+      const result = await getUnreadNotifications();
+      // Background poll: on failure keep whatever we last knew rather than
+      // clearing the badge. Before KWM-019 this action returned `[]` on error,
+      // indistinguishable from "no notifications", so a transient fault
+      // silently told the user their inbox was empty. No toast either — this
+      // runs every 30s unattended, and a toast loop is worse than silence.
+      if (!result.ok) {
+        console.error("Could not load notifications:", result.error.code);
+        return;
+      }
+      setNotification(result.value);
     };
     fetchNotifications();
 
@@ -73,8 +84,14 @@ export default function Header({ onMenuClick }: HeaderProps) {
   useEffect(() => {
     const fetchUserBalance = async () => {
       if (!sessionUser) return;
-      const userBalance = await getUserBalance();
-      setBalance(userBalance);
+      const result = await getUserBalance();
+      // Same reasoning as the notification poll: a failed read must not render
+      // as a balance of 0, which is what the old `return 0` fallback did.
+      if (!result.ok) {
+        console.error("Could not load reward balance:", result.error.code);
+        return;
+      }
+      setBalance(result.value);
     };
     fetchUserBalance();
 
@@ -94,7 +111,16 @@ export default function Header({ onMenuClick }: HeaderProps) {
   }, [sessionUser]);
 
   const handleNotificationClick = async (notificationId: number) => {
-    await markNotificationAsRead(notificationId);
+    const result = await markNotificationAsRead(notificationId);
+    // User-initiated, so a failure gets a toast (KWM-019 AC3). This is the case
+    // that used to throw: Next.js redacts thrown Server Action errors in
+    // production, so "Not the resource owner" reached the client as an opaque
+    // digest and nothing could be shown at all.
+    if (!result.ok) {
+      toast.error(actionErrorMessage(result.error));
+      return;
+    }
+    setNotification((current) => current.filter((n) => n.id !== notificationId));
   };
 
    return (
