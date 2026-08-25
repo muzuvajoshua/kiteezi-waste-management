@@ -2,6 +2,9 @@
 
 import { requireUser, requireRole } from '@/modules/auth/presentation/auth-guards';
 import { validate } from '@/lib/validation';
+import { actionResult } from '@/shared/presentation/action-result';
+import { type Result, ok } from '@/shared/application/result';
+import type { AppError } from '@/shared/application/app-error';
 import type { Role } from '@/utils/db/schema';
 import { rewardRepository, rewardCatalogRepository, rewardTransactionManager } from './composition';
 import { getBalance } from '../application/get-balance.usecase';
@@ -10,88 +13,88 @@ import { getAvailableRewards as getAvailableRewardsUseCase } from '../applicatio
 import { redeemReward as redeemRewardUseCase } from '../application/redeem-reward.usecase';
 import { earnPoints } from '../application/earn-points.usecase';
 import { getAllBalances } from '../application/get-all-balances.usecase';
+import type {
+  PointTransactionPage,
+  RewardBalanceRow,
+} from '../application/ports/reward-repository.port';
+import type { AvailableRewardsOutput } from '../application/get-available-rewards.usecase';
 import { redeemRewardSchema, saveRewardSchema, rewardTransactionsQuerySchema } from './reward.schemas';
 
-// KWM-009/011/012/018 — thin Presentation adapter: same exported names and
-// return shapes as the legacy utils/db/actions.ts reward exports (no
-// caller-visible behavior change). Auth guard first, then Zod validation,
-// then a use-case call through the module's composition root, then unwrap
-// Result back to the plain value/shape callers already expect.
+// KWM-009/011/012/018/019 — thin Presentation adapter: auth guard, then Zod
+// validation, then a use-case call through the module's composition root, all
+// inside `actionResult` so every action returns `Result<T, AppError>` and never
+// throws. See report.actions.ts for why the previous null/[]/throw mix went.
 
 const COLLECTION_ROLES: Role[] = ['operator', 'supervisor', 'admin'];
 const REVIEW_ROLES: Role[] = ['supervisor', 'admin'];
 
-export async function getUserBalance(): Promise<number> {
-  const me = await requireUser();
-  const result = await getBalance(rewardRepository, me.userId);
-  if (!result.ok) {
-    console.error('Error fetching reward balance:', result.error.message);
-    return 0;
-  }
-  return result.value;
+export async function getUserBalance(): Promise<Result<number, AppError>> {
+  return actionResult(async () => {
+    const me = await requireUser();
+    return getBalance(rewardRepository, me.userId);
+  });
 }
 
 export async function getRewardTransactions(
   limit: number = 20,
   cursor?: { createdAt: Date | string; id: number }
-) {
-  const me = await requireUser();
-  const input = validate(rewardTransactionsQuerySchema, { limit, cursor });
-  const result = await listTransactions(rewardRepository, {
-    userId: me.userId,
-    limit: input.limit,
-    cursor: input.cursor,
+): Promise<Result<PointTransactionPage, AppError>> {
+  return actionResult(async () => {
+    const me = await requireUser();
+    const input = validate(rewardTransactionsQuerySchema, { limit, cursor });
+    return listTransactions(rewardRepository, {
+      userId: me.userId,
+      limit: input.limit,
+      cursor: input.cursor,
+    });
   });
-  if (!result.ok) {
-    console.error('Error fetching reward transactions:', result.error.message);
-    return { items: [], nextCursor: null };
-  }
-  return result.value;
 }
 
-export async function getAvailableRewards() {
-  const me = await requireUser();
-  const result = await getAvailableRewardsUseCase(rewardRepository, rewardCatalogRepository, me.userId);
-  if (!result.ok) {
-    console.error('Error fetching available rewards:', result.error.message);
-    return { balance: 0, items: [] };
-  }
-  return result.value;
+export async function getAvailableRewards(): Promise<Result<AvailableRewardsOutput, AppError>> {
+  return actionResult(async () => {
+    const me = await requireUser();
+    return getAvailableRewardsUseCase(rewardRepository, rewardCatalogRepository, me.userId);
+  });
 }
 
-export async function redeemReward(rewardId: number) {
-  const me = await requireUser();
-  const { rewardId: id } = validate(redeemRewardSchema, { rewardId });
-  const result = await redeemRewardUseCase(rewardTransactionManager, rewardCatalogRepository, {
-    userId: me.userId,
-    rewardId: id,
+export async function redeemReward(rewardId: number): Promise<Result<{ balance: number }, AppError>> {
+  return actionResult(async () => {
+    const me = await requireUser();
+    const { rewardId: id } = validate(redeemRewardSchema, { rewardId });
+    return redeemRewardUseCase(rewardTransactionManager, rewardCatalogRepository, {
+      userId: me.userId,
+      rewardId: id,
+    });
   });
-  if (!result.ok) throw new Error(result.error.message);
-  return result.value;
 }
 
 // saveReward awards points to a *recipient* (a reporter) — actor is an authorised
 // operator/admin from the session. NOT idempotent without a caller-supplied
 // stable key (deterministic dedup deferred to KWM-031).
-export async function saveReward(recipientUserId: number, amount: number, idempotencyKey?: string) {
-  await requireRole(COLLECTION_ROLES);
-  const input = validate(saveRewardSchema, { recipientUserId, amount, idempotencyKey });
-  const result = await earnPoints(rewardTransactionManager, {
-    userId: input.recipientUserId,
-    kind: 'earn_collect',
-    amount: input.amount,
-    idempotencyKey: input.idempotencyKey ?? null,
+export async function saveReward(
+  recipientUserId: number,
+  amount: number,
+  idempotencyKey?: string
+): Promise<Result<{ applied: boolean }, AppError>> {
+  return actionResult(async () => {
+    await requireRole(COLLECTION_ROLES);
+    const input = validate(saveRewardSchema, { recipientUserId, amount, idempotencyKey });
+    const result = await earnPoints(rewardTransactionManager, {
+      userId: input.recipientUserId,
+      kind: 'earn_collect',
+      amount: input.amount,
+      idempotencyKey: input.idempotencyKey ?? null,
+    });
+    // Narrow the use-case's output to the caller-facing shape: whether the
+    // mint was applied. The recipient's resulting balance is deliberately not
+    // returned — the actor here is a collector, not the balance's owner.
+    return result.ok ? ok({ applied: result.value.applied }) : result;
   });
-  if (!result.ok) throw new Error(result.error.message);
-  return { applied: result.value.applied };
 }
 
-export async function getAllRewards() {
-  await requireRole(REVIEW_ROLES);
-  const result = await getAllBalances(rewardRepository);
-  if (!result.ok) {
-    console.error('Error fetching all rewards:', result.error.message);
-    return [];
-  }
-  return result.value;
+export async function getAllRewards(): Promise<Result<readonly RewardBalanceRow[], AppError>> {
+  return actionResult(async () => {
+    await requireRole(REVIEW_ROLES);
+    return getAllBalances(rewardRepository);
+  });
 }
