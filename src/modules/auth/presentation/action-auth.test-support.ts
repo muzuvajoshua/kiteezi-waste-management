@@ -1,3 +1,4 @@
+import { expect } from 'vitest';
 import type { Role } from '../domain/role';
 import type { InMemoryUserRepository } from '../infrastructure/in-memory-user-repository.adapter';
 import type { InMemoryRoleRepository } from '../infrastructure/in-memory-role-repository.adapter';
@@ -144,4 +145,43 @@ export function authHarness(): AuthHarness {
       await this.signOut();
     },
   };
+}
+
+// --- Assertions on the action boundary -------------------------------------
+//
+// Since KWM-019, actions return `Result<T, AppError>` and never throw, so an
+// authorization refusal is a returned `{ ok: false, error: { code } }` rather
+// than a rejected promise. These two helpers live here rather than being
+// repeated in each module's action test.
+
+type RefusalCode = 'UNAUTHENTICATED' | 'FORBIDDEN';
+
+interface ActionOutcome {
+  readonly ok: boolean;
+  readonly error?: { readonly code?: string; readonly message?: string };
+}
+
+/** Asserts the action refused the caller with exactly `code`. */
+export async function expectRefused(call: Promise<unknown>, code: RefusalCode): Promise<void> {
+  const outcome = (await call) as ActionOutcome;
+  expect(outcome).toMatchObject({ ok: false, error: { code } });
+}
+
+/**
+ * Asserts the action did NOT refuse the caller on authorization grounds.
+ *
+ * Deliberately not "ok === true": several actions legitimately fail for data
+ * reasons under the in-memory fakes (a report id that was never seeded), and
+ * that says nothing about authorization. Only UNAUTHENTICATED/FORBIDDEN
+ * disqualify — so an over-strict guard is still caught, while unrelated data
+ * failures do not raise false alarms.
+ */
+export async function expectAdmitted(call: Promise<unknown>): Promise<void> {
+  const outcome = (await call) as ActionOutcome;
+  const code = outcome.ok === false ? outcome.error?.code : undefined;
+  if (code === 'UNAUTHENTICATED' || code === 'FORBIDDEN') {
+    throw new Error(
+      `Expected the caller to be admitted, but the action refused with ${code}: ${outcome.error?.message ?? ''}`
+    );
+  }
 }
