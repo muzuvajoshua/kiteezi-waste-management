@@ -1,6 +1,9 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { UnauthenticatedError, ForbiddenError } from '@/modules/auth/domain/errors';
-import { authHarness } from '@/modules/auth/presentation/action-auth.test-support';
+import {
+  authHarness,
+  expectAdmitted,
+  expectRefused,
+} from '@/modules/auth/presentation/action-auth.test-support';
 
 // Authorization enforcement at the ACTION boundary for the collection module.
 // See report.actions.auth.test.ts for why the composition root is the seam.
@@ -47,23 +50,12 @@ async function actions(): Promise<Actions> {
   return import('./collection.actions');
 }
 
-/** See report.actions.auth.test.ts — only auth refusals disqualify. */
-async function expectAdmitted(promise: Promise<unknown>): Promise<void> {
-  await promise.catch((error: unknown) => {
-    if (error instanceof UnauthenticatedError || error instanceof ForbiddenError) {
-      throw new Error(
-        `Expected the caller to be admitted, but was refused with ${(error as Error).name}: ${(error as Error).message}`
-      );
-    }
-  });
-}
-
 describe('collection.actions authorization', () => {
   describe('every action rejects an unauthenticated caller', () => {
     for (const { name, call } of ACTIONS) {
       it(`${name} throws UnauthenticatedError with no session`, async () => {
         await auth.signOut();
-        await expect(call(await actions())).rejects.toBeInstanceOf(UnauthenticatedError);
+        await expectRefused(call(await actions()), 'UNAUTHENTICATED');
       });
     }
   });
@@ -77,7 +69,7 @@ describe('collection.actions authorization', () => {
       for (const role of denied) {
         it(`${name} throws ForbiddenError for a ${role}`, async () => {
           await auth.signInAs({ roles: [role] });
-          await expect(call(await actions())).rejects.toBeInstanceOf(ForbiddenError);
+          await expectRefused(call(await actions()), 'FORBIDDEN');
         });
       }
     }
@@ -100,7 +92,7 @@ describe('collection.actions authorization', () => {
 
       const created = await (await actions()).createCollectedWaste(9);
 
-      expect(created).toMatchObject({ reportId: 9, collectorId: 42 });
+      expect(created).toMatchObject({ ok: true, value: { reportId: 9, collectorId: 42 } });
     });
 
     it('scopes the collector\'s own list to the session user', async () => {
@@ -110,7 +102,7 @@ describe('collection.actions authorization', () => {
 
       await auth.signInAs({ userId: 43, roles: ['operator'] });
 
-      expect(await mod.getCollectedWastesByCollector()).toEqual([]);
+      expect(await mod.getCollectedWastesByCollector()).toEqual({ ok: true, value: [] });
     });
   });
 });

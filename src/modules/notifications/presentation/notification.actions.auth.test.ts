@@ -1,6 +1,8 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { UnauthenticatedError } from '@/modules/auth/domain/errors';
-import { authHarness } from '@/modules/auth/presentation/action-auth.test-support';
+import {
+  authHarness,
+  expectRefused,
+} from '@/modules/auth/presentation/action-auth.test-support';
 
 // Authorization enforcement at the ACTION boundary for the notifications
 // module. See report.actions.auth.test.ts for why the composition root is the
@@ -61,19 +63,15 @@ async function seedNotification(id: number, userId: number): Promise<void> {
 }
 
 describe('notification.actions authorization', () => {
-  describe('every action rejects an unauthenticated caller', () => {
-    it('getUnreadNotifications throws UnauthenticatedError with no session', async () => {
+  describe('every action refuses an unauthenticated caller', () => {
+    it('getUnreadNotifications refuses with UNAUTHENTICATED when there is no session', async () => {
       await auth.signOut();
-      await expect((await actions()).getUnreadNotifications()).rejects.toBeInstanceOf(
-        UnauthenticatedError
-      );
+      await expectRefused((await actions()).getUnreadNotifications(), 'UNAUTHENTICATED');
     });
 
-    it('markNotificationAsRead throws UnauthenticatedError with no session', async () => {
+    it('markNotificationAsRead refuses with UNAUTHENTICATED when there is no session', async () => {
       await auth.signOut();
-      await expect((await actions()).markNotificationAsRead(1)).rejects.toBeInstanceOf(
-        UnauthenticatedError
-      );
+      await expectRefused((await actions()).markNotificationAsRead(1), 'UNAUTHENTICATED');
     });
   });
 
@@ -81,7 +79,9 @@ describe('notification.actions authorization', () => {
     for (const role of ['citizen', 'operator', 'supervisor', 'admin', 'dump_op'] as const) {
       it(`getUnreadNotifications admits a ${role}`, async () => {
         await auth.signInAs({ roles: [role] });
-        await expect((await actions()).getUnreadNotifications()).resolves.toBeDefined();
+        await expect((await actions()).getUnreadNotifications()).resolves.toMatchObject({
+          ok: true,
+        });
       });
     }
   });
@@ -91,26 +91,32 @@ describe('notification.actions authorization', () => {
       await seedNotification(100, 8);
       await auth.signInAs({ userId: 7, roles: ['citizen'] });
 
-      // The action rethrows FORBIDDEN as a plain Error carrying the domain
-      // message (its documented behaviour) rather than swallowing it like an
-      // infrastructure fault.
-      await expect((await actions()).markNotificationAsRead(100)).rejects.toThrow(
-        'Not the resource owner'
-      );
+      // Before KWM-019 this rethrew a plain Error carrying the domain message,
+      // which Next.js would have redacted in production. It is now a typed
+      // FORBIDDEN Result, and the domain message survives to the client.
+      const outcome = await (await actions()).markNotificationAsRead(100);
+      expect(outcome).toMatchObject({
+        ok: false,
+        error: { code: 'FORBIDDEN', message: 'Not the resource owner' },
+      });
     });
 
     it('allows marking the caller\'s own notification as read', async () => {
       await seedNotification(101, 7);
       await auth.signInAs({ userId: 7, roles: ['citizen'] });
 
-      await expect((await actions()).markNotificationAsRead(101)).resolves.toBeUndefined();
+      await expect((await actions()).markNotificationAsRead(101)).resolves.toMatchObject({
+        ok: true,
+      });
     });
 
     it('allows an admin to mark another user\'s notification as read', async () => {
       await seedNotification(102, 8);
       await auth.signInAs({ userId: 7, roles: ['admin'] });
 
-      await expect((await actions()).markNotificationAsRead(102)).resolves.toBeUndefined();
+      await expect((await actions()).markNotificationAsRead(102)).resolves.toMatchObject({
+        ok: true,
+      });
     });
 
     it('does not leak whether a notification exists to a non-owner', async () => {
@@ -118,7 +124,9 @@ describe('notification.actions authorization', () => {
       // "not yours" from "does not exist" by probing ids.
       await auth.signInAs({ userId: 7, roles: ['citizen'] });
 
-      await expect((await actions()).markNotificationAsRead(999_999)).resolves.toBeUndefined();
+      await expect((await actions()).markNotificationAsRead(999_999)).resolves.toMatchObject({
+        ok: true,
+      });
     });
   });
 
@@ -130,7 +138,9 @@ describe('notification.actions authorization', () => {
 
       const mine = await (await actions()).getUnreadNotifications();
 
-      expect(mine.map((n) => n.id)).toEqual([200]);
+      expect(mine.ok).toBe(true);
+      if (!mine.ok) return;
+      expect(mine.value.map((n) => n.id)).toEqual([200]);
     });
   });
 });
