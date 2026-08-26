@@ -1,5 +1,6 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vitest/config';
 
 // Vitest setup. Server-side code (domain, use-cases, adapters, actions) runs in
@@ -9,6 +10,15 @@ import { defineConfig } from 'vitest/config';
 const root = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
+  // tsconfig.json sets `jsx: "preserve"` because Next.js performs its own JSX
+  // transform at build time. Vitest has no such downstream step, and Vite
+  // refuses that setting outright ("make sure to not set jsx to preserve").
+  //
+  // This plugin owns the JSX transform for tests, so tsconfig.json is left
+  // exactly as Next.js needs it. Overriding esbuild's `jsx` or `tsconfigRaw`
+  // does NOT work here — Vite's import-analysis pass reads tsconfig.json
+  // directly and rejects the file before either setting applies.
+  plugins: [react()],
   test: {
     environment: 'node',
     coverage: {
@@ -22,8 +32,10 @@ export default defineConfig({
 
       exclude: [
         // Test code and its helpers are not the subject of measurement.
-        '**/*.test.ts',
+        // `.tsx` matters now that component/hook tests exist.
+        '**/*.test.{ts,tsx}',
         '**/*.test-support.ts',
+        'src/test-support/**',
         '**/*.d.ts',
 
         // Next.js wiring, not logic: layout/page/metadata, plus the one-line
@@ -33,14 +45,17 @@ export default defineConfig({
         // also holds fonts/favicon/css, which must never be instrumented.
         'src/app/**',
 
-        // React components and hooks. These need a jsdom environment and
-        // component tests, neither of which exists yet (KWM-062 / KWM-064);
-        // under the 'node' environment above they cannot be exercised at all,
-        // so counting them would only pin a permanent 0% to the totals without
-        // adding any actionable signal. DELETE THESE TWO LINES when component
-        // tests land — the intent is to measure them, not to exempt them.
+        // React components. Now technically testable — jsdom and
+        // @testing-library/react are wired up, see src/test-support — but no
+        // component has a test yet, so they would contribute nothing but a
+        // block of 0%. Delete this line as components gain tests; the intent
+        // is to measure them, not to exempt them.
+        //
+        // `src/hooks/**` used to sit here and no longer does: useMediaQuery is
+        // covered, and useSession's 0% is now visible in the totals rather
+        // than hidden by an exclusion. Every floor still holds without being
+        // lowered.
         'src/components/**',
-        'src/hooks/**',
       ],
 
       // Files with no test at all are reported too, not just files a test
