@@ -1,6 +1,13 @@
 import { NextResponse } from 'next/server';
 import { validate, ValidationError } from '@/lib/validation';
-import { identityProvider, userRepository, roleRepository, sessionTokenService, sessionStore } from './composition';
+import {
+  identityProvider,
+  identityRepository,
+  userRepository,
+  roleRepository,
+  sessionTokenService,
+  sessionStore,
+} from './composition';
 import { establishSession } from '../application/establish-session.usecase';
 import { sessionRequestSchema } from './auth.schemas';
 
@@ -24,6 +31,7 @@ export async function POST(req: Request) {
 
   const result = await establishSession(
     identityProvider,
+    identityRepository,
     userRepository,
     roleRepository,
     sessionTokenService,
@@ -32,7 +40,14 @@ export async function POST(req: Request) {
   );
 
   if (!result.ok) {
-    const status = result.error.code === 'UNAUTHENTICATED' ? 401 : result.error.code === 'VALIDATION' ? 400 : 500;
+    const status =
+      result.error.code === 'UNAUTHENTICATED'
+        ? 401
+        : result.error.code === 'VALIDATION'
+          ? 400
+          : result.error.code === 'CONFLICT'
+            ? 409
+            : 500;
     return NextResponse.json({ error: result.error.message }, { status });
   }
 
