@@ -2,7 +2,8 @@ import { DrizzleUserRepository } from '../infrastructure/drizzle-user-repository
 import { DrizzleRoleRepository } from '../infrastructure/drizzle-role-repository.adapter';
 import { CookieSessionStore } from '../infrastructure/cookie-session-store.adapter';
 import { JoseSessionTokenService } from '../infrastructure/jose-session-token.adapter';
-import { Web3AuthIdentityProvider } from '../infrastructure/web3auth-identity-provider.adapter';
+import { GoogleIdentityProvider } from '../infrastructure/google-identity-provider.adapter';
+import { DrizzleIdentityRepository } from '../infrastructure/drizzle-identity-repository.adapter';
 
 // This module's slice of the composition root: module-scope singletons,
 // same lazy/cheap-construction pattern as db/txdb and the rewards module's
@@ -16,4 +17,5 @@ export const userRepository = new DrizzleUserRepository();
 export const roleRepository = new DrizzleRoleRepository();
 export const sessionStore = new CookieSessionStore(SESSION_MAX_AGE_SECONDS);
 export const sessionTokenService = new JoseSessionTokenService(SESSION_MAX_AGE_SECONDS);
-export const identityProvider = new Web3AuthIdentityProvider();
+export const identityProvider = new GoogleIdentityProvider();
+export const identityRepository = new DrizzleIdentityRepository();
