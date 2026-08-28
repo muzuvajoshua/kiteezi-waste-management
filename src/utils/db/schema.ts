@@ -190,3 +190,50 @@ export const PointTransactions = pgTable('point_transactions', {
 }, (table) => ({
     userCreatedAtIdx: index('point_transactions_user_id_created_at_idx').on(table.userId, table.createdAt),
 }));
+
+// ---------------------------------------------------------------------------
+// Auth identities — how a user proves who they are.
+//
+// Replaces email-keyed identity. `establish-session` used to upsert by email,
+// which is a weak key: addresses get reassigned, and keying on one means
+// anyone able to obtain a token bearing that address inherits the account.
+//
+// One user may hold several rows: a Google identity AND a password identity,
+// which is what lets the same person sign in either way. `provider_subject`
+// is Google's immutable `sub` for oauth rows, and the normalised email for
+// password rows. `password_hash` is null for anything but 'password'.
+// ---------------------------------------------------------------------------
+export const authProviderEnum = pgEnum('auth_provider', ['google', 'password']);
+export type AuthProvider = (typeof authProviderEnum.enumValues)[number];
+
+export const UserIdentities = pgTable('user_identities', {
+    id: serial('id').primaryKey(),
+    userId: integer('user_id').notNull().references(() => Users.id, { onDelete: 'cascade' }),
+    provider: authProviderEnum('provider').notNull(),
+    providerSubject: varchar('provider_subject', { length: 255 }).notNull(),
+    // Only ever set for provider = 'password'. Scrypt, encoded with its own
+    // salt and parameters (see infrastructure/scrypt-password-hasher).
+    passwordHash: text('password_hash'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    lastUsedAt: timestamp('last_used_at'),
+}, (table) => ({
+    // The uniqueness that makes this safe: one provider identity maps to
+    // exactly one user, so two accounts cannot claim the same Google sub.
+    providerSubjectUnique: unique('user_identities_provider_subject_unique').on(
+        table.provider,
+        table.providerSubject
+    ),
+    userIdIdx: index('user_identities_user_id_idx').on(table.userId),
+    // A user may hold at most one identity per provider.
+    userProviderUnique: unique('user_identities_user_id_provider_unique').on(
+        table.userId,
+        table.provider
+    ),
+    // Mirrors the hand-added CHECK in 0006: a hash belongs to a password
+    // identity and nowhere else. Declared here so drizzle-kit does not see a
+    // drift between schema and database on the next generate.
+    passwordHashMatchesProvider: check(
+        'user_identities_password_hash_matches_provider',
+        sql`(${table.provider} = 'password' AND ${table.passwordHash} IS NOT NULL) OR (${table.provider} <> 'password' AND ${table.passwordHash} IS NULL)`
+    ),
+}));
