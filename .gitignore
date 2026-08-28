@@ -8,10 +8,16 @@
 
 # testing
 /coverage
-.env
+
 # next.js
 /.next/
 /out/
+
+# environment files — never commit secrets
+# (.env.example is tracked because it documents required variables)
+.env
+.env.*
+!.env.example
 
 # production
 /build
@@ -24,9 +30,6 @@
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-
-# local env files
-.env*.local
 
 # vercel
 .vercel
