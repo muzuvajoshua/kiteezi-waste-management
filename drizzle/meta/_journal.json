@@ -43,6 +43,13 @@
       "when": 1782306022321,
       "tag": "0005_reward_ledger",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1787885370133,
+      "tag": "0006_add_user_identities",
+      "breakpoints": true
     }
   ]
 }

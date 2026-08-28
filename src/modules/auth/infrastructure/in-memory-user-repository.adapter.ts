@@ -9,6 +9,11 @@ export class InMemoryUserRepository implements UserRepository {
     if (user.id >= this.nextId) this.nextId = user.id + 1;
   }
 
+  /** Test helper: lets a test assert no duplicate account was created. */
+  count(): number {
+    return this.usersById.size;
+  }
+
   async getUserById(id: number): Promise<UserRecord | null> {
     return this.usersById.get(id) ?? null;
   }
