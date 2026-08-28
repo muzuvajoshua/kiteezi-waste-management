@@ -1,15 +1,18 @@
-import type { IdentityProvider } from '../application/ports/identity-provider.port';
+import type {
+  IdentityProvider,
+  ExternalIdentity,
+} from '../application/ports/identity-provider.port';
 
 export class InMemoryIdentityProvider implements IdentityProvider {
-  private readonly claimsByToken = new Map<string, { email?: string; name?: string }>();
+  private readonly identitiesByToken = new Map<string, ExternalIdentity>();
 
-  seedToken(idToken: string, claims: { email?: string; name?: string }): void {
-    this.claimsByToken.set(idToken, claims);
+  seedToken(idToken: string, identity: ExternalIdentity): void {
+    this.identitiesByToken.set(idToken, identity);
   }
 
-  async verifyToken(idToken: string): Promise<{ email?: string; name?: string }> {
-    const claims = this.claimsByToken.get(idToken);
-    if (!claims) throw new Error('Invalid token');
-    return claims;
+  async verifyToken(idToken: string): Promise<ExternalIdentity> {
+    const identity = this.identitiesByToken.get(idToken);
+    if (!identity) throw new Error('Invalid token');
+    return identity;
   }
 }
