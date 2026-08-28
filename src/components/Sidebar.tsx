@@ -1,11 +1,17 @@
 import Link from "next/link"
 import { usePathname } from 'next/navigation'
 import { Button } from "@/components/ui/button"
-import { MapPin, Trash, Coins, Medal, Settings, Home } from "lucide-react"
+import { MapPin, Trash, Coins, Medal, Settings, Home, ListChecks } from "lucide-react"
 
+// /report and /my-reports exist as of KWM-025/KWM-027. The remaining entries
+// still 404 — they are the original C-10 finding and are tracked by their own
+// issues (KWM-030 /collect, KWM-033 /rewards, and the leaderboard/settings
+// pages). Left in place rather than removed so the intended shape of the app
+// stays visible; each disappears from this list as its page lands.
 const sidebarItems = [
   { href: "/", icon: Home, label: "Home" },
   { href: "/report", icon: MapPin, label: "Report Waste" },
+  { href: "/my-reports", icon: ListChecks, label: "My Reports" },
   { href: "/collect", icon: Trash, label: "Collect Waste" },
   { href: "/rewards", icon: Coins, label: "Rewards" },
   { href: "/leaderboard", icon: Medal, label: "Leaderboard" },
