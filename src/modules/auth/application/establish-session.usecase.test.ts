@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { InMemorySessionRepository } from '../infrastructure/in-memory-session-repository.adapter';
 import { InMemorySessionStore } from '../infrastructure/in-memory-session-store.adapter';
 import { InMemorySessionTokenService } from '../infrastructure/in-memory-session-token-service.adapter';
 import { InMemoryUserRepository } from '../infrastructure/in-memory-user-repository.adapter';
@@ -15,6 +16,7 @@ function setup() {
     roleRepository: new InMemoryRoleRepository(),
     sessionTokenService: new InMemorySessionTokenService(),
     sessionStore: new InMemorySessionStore(),
+    sessionRepository: new InMemorySessionRepository(),
   };
 }
 
@@ -28,6 +30,7 @@ function run(deps: Deps, idToken: string) {
     deps.roleRepository,
     deps.sessionTokenService,
     deps.sessionStore,
+    deps.sessionRepository,
     { idToken }
   );
 }
