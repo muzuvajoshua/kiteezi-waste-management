@@ -16,6 +16,7 @@ import {
   roleRepository,
   sessionTokenService,
   sessionStore,
+  sessionRepository,
 } from './composition';
 import { registerWithPassword } from '../application/register-with-password.usecase';
 import { establishSessionFromPassword } from '../application/establish-session-from-password.usecase';
@@ -72,6 +73,7 @@ export async function registerWithEmailPassword(
       roleRepository,
       sessionTokenService,
       sessionStore,
+      sessionRepository,
       { email: input.email, password: input.password, name: input.name }
     );
   });
@@ -99,6 +101,7 @@ export async function signInWithEmailPassword(
       userRepository,
       sessionTokenService,
       sessionStore,
+      sessionRepository,
       { email: input.email, password: input.password }
     );
   });
