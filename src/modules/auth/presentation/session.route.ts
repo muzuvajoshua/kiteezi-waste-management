@@ -7,6 +7,7 @@ import {
   roleRepository,
   sessionTokenService,
   sessionStore,
+  sessionRepository,
 } from './composition';
 import { establishSession } from '../application/establish-session.usecase';
 import { sessionRequestSchema } from './auth.schemas';
@@ -36,6 +37,7 @@ export async function POST(req: Request) {
     roleRepository,
     sessionTokenService,
     sessionStore,
+    sessionRepository,
     { idToken }
   );
 
