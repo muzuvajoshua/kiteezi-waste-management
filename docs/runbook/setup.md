@@ -237,6 +237,29 @@ is real and worth understanding before relying on it:
 > the `resend.dev` domain can only send to **the email address associated with
 > your Resend account**. Anyone else gets a 403.
 
+**Exactly that address — `+aliases` do not work.** Sending to
+`you+test@gmail.com` when the account is `you@gmail.com` returns **403**,
+verified 2026-08-30. Gmail would deliver it, Resend refuses to hand it over.
+That matters more than it sounds, because it removes the obvious way to hold
+a Google account and a password account at the same address: the anti-takeover
+guard in `establish-session` refuses to attach a password to an address
+another account already owns, and a `+alias` cannot be used to sidestep it
+while still receiving mail.
+
+The practical consequence is that the two halves must be verified separately,
+which is fine — they are independent:
+
+| Half | How to verify without a domain |
+|---|---|
+| **Delivery** | Send one real message to the account address through `ResendEmailSender` |
+| **Reset logic** | Drive the use-cases against the database with an in-memory email sender, and read the link from the captured message |
+
+Both were done on 2026-08-30. Delivery was accepted by the live API, and the
+full flow — register, request, reset, replay, sign in — passed against real
+Neon, including the two properties that had only ever been tested against a
+fake: **only the token's SHA-256 is stored** (a raw-token lookup finds
+nothing) and **a replayed link is refused**.
+
 That is enough to prove the integration works — the API key, the request the
 adapter builds, and a real email arriving with a working link — which is the
 one thing unit tests cannot show. It is **not** enough for other people to
