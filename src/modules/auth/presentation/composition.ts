@@ -4,6 +4,7 @@ import { CookieSessionStore } from '../infrastructure/cookie-session-store.adapt
 import { JoseSessionTokenService } from '../infrastructure/jose-session-token.adapter';
 import { GoogleIdentityProvider } from '../infrastructure/google-identity-provider.adapter';
 import { DrizzleIdentityRepository } from '../infrastructure/drizzle-identity-repository.adapter';
+import { ScryptPasswordHasher } from '../infrastructure/scrypt-password-hasher.adapter';
 
 // This module's slice of the composition root: module-scope singletons,
 // same lazy/cheap-construction pattern as db/txdb and the rewards module's
@@ -19,3 +20,6 @@ export const sessionStore = new CookieSessionStore(SESSION_MAX_AGE_SECONDS);
 export const sessionTokenService = new JoseSessionTokenService(SESSION_MAX_AGE_SECONDS);
 export const identityProvider = new GoogleIdentityProvider();
 export const identityRepository = new DrizzleIdentityRepository();
+// Default scrypt parameters, chosen in the adapter. Constructed here like
+// every other adapter so the cost is set in one place if it is ever raised.
+export const passwordHasher = new ScryptPasswordHasher();
