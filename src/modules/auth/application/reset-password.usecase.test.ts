@@ -3,6 +3,10 @@ import { InMemoryIdentityRepository } from '../infrastructure/in-memory-identity
 import { InMemoryPasswordResetTokenRepository } from '../infrastructure/in-memory-password-reset-token-repository.adapter';
 import { Sha256ResetTokenService } from '../infrastructure/sha256-reset-token.adapter';
 import { ScryptPasswordHasher } from '../infrastructure/scrypt-password-hasher.adapter';
+import { InMemorySessionRepository } from '../infrastructure/in-memory-session-repository.adapter';
+import { InMemorySessionStore } from '../infrastructure/in-memory-session-store.adapter';
+import { InMemorySessionTokenService } from '../infrastructure/in-memory-session-token-service.adapter';
+import { startSession } from './start-session';
 import { resetPassword } from './reset-password.usecase';
 
 // Consuming a reset link.
@@ -23,7 +27,7 @@ async function setup() {
     providerSubject: 'citizen@example.com',
     passwordHash: await hasher.hash('the original password'),
   });
-  return { identityRepository, tokenRepository };
+  return { identityRepository, tokenRepository, sessionRepository: new InMemorySessionRepository() };
 }
 
 type Deps = Awaited<ReturnType<typeof setup>>;
@@ -39,10 +43,14 @@ async function issueToken(deps: Deps, { expiresInMs = 3_600_000, userId = 7 } = 
 }
 
 function run(deps: Deps, token: string, newPassword: string) {
-  return resetPassword(deps.tokenRepository, deps.identityRepository, hasher, tokenService, {
-    token,
-    newPassword,
-  });
+  return resetPassword(
+    deps.tokenRepository,
+    deps.identityRepository,
+    hasher,
+    tokenService,
+    deps.sessionRepository,
+    { token, newPassword }
+  );
 }
 
 async function storedHash(deps: Deps): Promise<string> {
@@ -60,6 +68,45 @@ describe('resetPassword', () => {
       const token = await issueToken(deps);
 
       expect(await run(deps, token, 'a brand new password')).toMatchObject({ ok: true });
+    });
+
+    it('ends every existing session, so the old password buys no more access', async () => {
+      // The reason KWM-079 was done before this: without it a reset protects
+      // nobody, because whoever signed in with the old password simply stays
+      // signed in for the life of their cookie.
+      const deps = await setup();
+      const store = new InMemorySessionStore();
+      const tokens = new InMemorySessionTokenService();
+      await startSession(tokens, store, deps.sessionRepository, 7);
+      await startSession(tokens, store, deps.sessionRepository, 7);
+      const token = await issueToken(deps);
+
+      const result = await run(deps, token, 'a brand new password');
+
+      expect(result).toMatchObject({ ok: true, value: { sessionsEnded: 2 } });
+    });
+
+    it('reports zero sessions ended when none were open', async () => {
+      const deps = await setup();
+      const token = await issueToken(deps);
+
+      expect(await run(deps, token, 'a brand new password')).toMatchObject({
+        ok: true,
+        value: { sessionsEnded: 0 },
+      });
+    });
+
+    it("does not end another user's sessions", async () => {
+      const deps = await setup();
+      const store = new InMemorySessionStore();
+      const tokens = new InMemorySessionTokenService();
+      await startSession(tokens, store, deps.sessionRepository, 8);
+      const token = await issueToken(deps);
+
+      await run(deps, token, 'a brand new password');
+
+      const theirs = await deps.sessionRepository.revokeAllForUser(8);
+      expect(theirs).toBe(1); // still live, so revoking now ends exactly one
     });
 
     it('replaces the stored password', async () => {

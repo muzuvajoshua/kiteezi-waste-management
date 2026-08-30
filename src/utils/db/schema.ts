@@ -286,3 +286,28 @@ export const PasswordResetTokens = pgTable('password_reset_tokens', {
     userIdIdx: index('password_reset_tokens_user_id_idx').on(table.userId),
     expiresAtIdx: index('password_reset_tokens_expires_at_idx').on(table.expiresAt),
 }));
+
+// ---------------------------------------------------------------------------
+// Sessions (KWM-079) — the server-side record that makes a session revocable.
+//
+// The session cookie is a stateless JWT, so clearing it only removes the
+// browser's copy: a cookie captured beforehand stays valid until it expires.
+// This table is the authority on whether a session is still good, checked on
+// every authenticated request.
+//
+// `session_id` is the token's `jti`. `revoked_at` is set rather than the row
+// deleted, so an audit of "when did this session end, and was it a logout or
+// a password reset" remains answerable.
+// ---------------------------------------------------------------------------
+export const Sessions = pgTable('sessions', {
+    sessionId: varchar('session_id', { length: 64 }).primaryKey(),
+    userId: integer('user_id').notNull().references(() => Users.id, { onDelete: 'cascade' }),
+    expiresAt: timestamp('expires_at').notNull(),
+    revokedAt: timestamp('revoked_at'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (table) => ({
+    // Revoking every session for a user is a hot path (password reset, admin
+    // termination), so it must not be a table scan.
+    userIdIdx: index('sessions_user_id_idx').on(table.userId),
+    expiresAtIdx: index('sessions_expires_at_idx').on(table.expiresAt),
+}));

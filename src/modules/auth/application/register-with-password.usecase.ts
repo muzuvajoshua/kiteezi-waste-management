@@ -8,6 +8,8 @@ import type { UserRepository } from './ports/user-repository.port';
 import type { RoleRepository } from './ports/role-repository.port';
 import type { SessionTokenService } from './ports/session-token-service.port';
 import type { SessionStore } from './ports/session-store.port';
+import type { SessionRepository } from './ports/session-repository.port';
+import { startSession } from './start-session';
 
 export interface RegisterWithPasswordInput {
   readonly email: string;
@@ -34,6 +36,7 @@ export async function registerWithPassword(
   roleRepository: RoleRepository,
   sessionTokenService: SessionTokenService,
   sessionStore: SessionStore,
+  sessionRepository: SessionRepository,
   input: RegisterWithPasswordInput
 ): Promise<Result<RegisterWithPasswordOutput, AppError>> {
   const email = normaliseEmail(input.email);
@@ -85,7 +88,7 @@ export async function registerWithPassword(
     // Every new user starts as a citizen (KWM-008).
     await roleRepository.assignRole(user.id, 'citizen');
 
-    await sessionStore.set(await sessionTokenService.sign({ userId: user.id }));
+    await startSession(sessionTokenService, sessionStore, sessionRepository, user.id);
 
     return ok({ id: user.id, email: user.email, name: user.name });
   } catch {

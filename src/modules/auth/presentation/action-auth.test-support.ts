@@ -62,12 +62,16 @@ export async function buildAuthComposition() {
   const { InMemorySessionTokenService } = await import(
     '../infrastructure/in-memory-session-token-service.adapter'
   );
+  const { InMemorySessionRepository } = await import(
+    '../infrastructure/in-memory-session-repository.adapter'
+  );
 
   return {
     userRepository: new InMemoryUserRepository(),
     roleRepository: new InMemoryRoleRepository(),
     sessionStore: new InMemorySessionStore(),
     sessionTokenService: new InMemorySessionTokenService(),
+    sessionRepository: new InMemorySessionRepository(),
     // Sign-in is not exercised by action authorization tests; the identity
     // provider is covered directly in
     // infrastructure/web3auth-identity-provider.adapter.test.ts.
@@ -126,6 +130,10 @@ interface MockedComposition {
   roleRepository: InMemoryRoleRepository;
   sessionStore: InMemorySessionStore;
   sessionTokenService: InMemorySessionTokenService;
+  sessionRepository: {
+    create(input: { sessionId: string; userId: number; expiresAt: Date }): Promise<void>;
+    clear(): void;
+  };
 }
 
 // The single cast in this file. The mocked module's runtime exports are the
@@ -139,7 +147,7 @@ async function composition(): Promise<MockedComposition> {
 export function authHarness(): AuthHarness {
   return {
     async signInAs(options: SignInOptions = {}) {
-      const { userRepository, roleRepository, sessionStore, sessionTokenService } =
+      const { userRepository, roleRepository, sessionStore, sessionTokenService, sessionRepository } =
         await composition();
       const userId = options.userId ?? 1;
 
@@ -151,7 +159,15 @@ export function authHarness(): AuthHarness {
       roleRepository.seedRoles(userId, [...(options.roles ?? ['citizen'])]);
       // A real token minted through the real port, not a hand-forged cookie
       // value: getCurrentUser still verifies it before trusting the userId.
-      await sessionStore.set(await sessionTokenService.sign({ userId }));
+      // Since KWM-079 the matching session record is required too, or every
+      // guard would refuse — so this mirrors what startSession does.
+      const { token, sessionId } = await sessionTokenService.sign({ userId });
+      await sessionRepository.create({
+        sessionId,
+        userId,
+        expiresAt: new Date(Date.now() + 3_600_000),
+      });
+      await sessionStore.set(token);
 
       return { userId };
     },
@@ -168,6 +184,7 @@ export function authHarness(): AuthHarness {
       // through and fail cases for the wrong reason.
       const shared = (await import('@/shared/presentation/composition')) as unknown as MockedShared;
       shared.rateLimiter.clear();
+      (await composition()).sessionRepository.clear();
     },
   };
 }

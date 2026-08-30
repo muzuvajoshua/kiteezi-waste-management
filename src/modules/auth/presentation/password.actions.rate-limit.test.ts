@@ -31,6 +31,7 @@ vi.mock('./composition', () => ({
   roleRepository: {},
   sessionTokenService: {},
   sessionStore: {},
+  sessionRepository: {},
 }));
 
 // Server actions read the caller's IP from request headers, which do not

@@ -6,10 +6,21 @@ import type { PasswordHasher } from './ports/password-hasher.port';
 import type { IdentityRepository } from './ports/identity-repository.port';
 import type { PasswordResetTokenRepository } from './ports/password-reset-token-repository.port';
 import type { ResetTokenService } from './ports/reset-token-service.port';
+import type { SessionRepository } from './ports/session-repository.port';
 
 export interface ResetPasswordInput {
   readonly token: string;
   readonly newPassword: string;
+}
+
+export interface ResetPasswordOutput {
+  /**
+   * How many signed-in devices were signed out.
+   *
+   * Surfaced so the user can be told — an unexpected count is how someone
+   * discovers a session they did not recognise.
+   */
+  readonly sessionsEnded: number;
 }
 
 /**
@@ -22,14 +33,20 @@ export interface ResetPasswordInput {
  *
  * The token is looked up by its hash, so no raw token is ever compared and
  * the lookup stays one indexed query.
+ *
+ * A successful reset ENDS EVERY EXISTING SESSION for that user (KWM-079).
+ * Without it the reset protects nobody: someone who signed in with the old
+ * password — which is the case a reset most often exists to handle — simply
+ * stays signed in, for up to the seven days the session cookie remains valid.
  */
 export async function resetPassword(
   tokenRepository: PasswordResetTokenRepository,
   identityRepository: IdentityRepository,
   passwordHasher: PasswordHasher,
   tokenService: ResetTokenService,
+  sessionRepository: SessionRepository,
   input: ResetPasswordInput
-): Promise<Result<void, AppError>> {
+): Promise<Result<ResetPasswordOutput, AppError>> {
   const rejected = err(
     appError('UNAUTHENTICATED', 'This reset link is invalid or has expired. Please request a new one.')
   );
@@ -71,7 +88,12 @@ export async function resetPassword(
     // attacker requested — the moment the real owner sets a password.
     await tokenRepository.invalidateAllForUser(record.userId);
 
-    return ok(undefined);
+    // And every existing session, so whoever knew the old password loses
+    // access. Done AFTER the password is stored: revoking first would leave
+    // a window where the old password still worked but sessions were gone.
+    const sessionsEnded = await sessionRepository.revokeAllForUser(record.userId);
+
+    return ok({ sessionsEnded });
   } catch {
     return err(appError('UNEXPECTED', 'Could not reset the password'));
   }

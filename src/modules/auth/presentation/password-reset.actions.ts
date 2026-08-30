@@ -13,6 +13,7 @@ import {
   passwordResetTokenRepository,
   resetTokenService,
   passwordHasher,
+  sessionRepository,
 } from './composition';
 import { requestPasswordReset } from '../application/request-password-reset.usecase';
 import { resetPassword } from '../application/reset-password.usecase';
@@ -76,7 +77,7 @@ export async function requestPasswordResetAction(
 export async function resetPasswordAction(
   token: string,
   newPassword: string
-): Promise<Result<void, AppError>> {
+): Promise<Result<{ sessionsEnded: number }, AppError>> {
   return actionResult(async () => {
     const input = validate(resetPasswordSchema, { token, newPassword });
 
@@ -95,6 +96,7 @@ export async function resetPasswordAction(
       identityRepository,
       passwordHasher,
       resetTokenService,
+      sessionRepository,
       { token: input.token, newPassword: input.newPassword }
     );
   });

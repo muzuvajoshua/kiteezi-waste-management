@@ -6,6 +6,8 @@ import type { IdentityRepository } from './ports/identity-repository.port';
 import type { UserRepository } from './ports/user-repository.port';
 import type { SessionTokenService } from './ports/session-token-service.port';
 import type { SessionStore } from './ports/session-store.port';
+import type { SessionRepository } from './ports/session-repository.port';
+import { startSession } from './start-session';
 
 export interface EstablishSessionFromPasswordInput {
   readonly email: string;
@@ -53,6 +55,7 @@ export async function establishSessionFromPassword(
   userRepository: UserRepository,
   sessionTokenService: SessionTokenService,
   sessionStore: SessionStore,
+  sessionRepository: SessionRepository,
   input: EstablishSessionFromPasswordInput
 ): Promise<Result<EstablishSessionFromPasswordOutput, AppError>> {
   const email = normaliseEmail(input.email);
@@ -79,7 +82,7 @@ export async function establishSessionFromPassword(
       return err(appError('UNEXPECTED', 'Could not resolve user'));
     }
 
-    await sessionStore.set(await sessionTokenService.sign({ userId: user.id }));
+    await startSession(sessionTokenService, sessionStore, sessionRepository, user.id);
 
     return ok({ id: user.id, email: user.email, name: user.name });
   } catch {

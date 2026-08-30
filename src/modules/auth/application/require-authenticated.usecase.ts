@@ -2,6 +2,7 @@ import type { CurrentUser } from '../domain/current-user';
 import { requireAuthenticated as policyRequireAuthenticated } from '../domain/authorization-policy';
 import { getCurrentUser } from './get-current-user.usecase';
 import type { SessionStore } from './ports/session-store.port';
+import type { SessionRepository } from './ports/session-repository.port';
 import type { SessionTokenService } from './ports/session-token-service.port';
 import type { UserRepository } from './ports/user-repository.port';
 import type { RoleRepository } from './ports/role-repository.port';
@@ -12,9 +13,10 @@ import type { RoleRepository } from './ports/role-repository.port';
 export async function requireAuthenticated(
   sessionStore: SessionStore,
   sessionTokenService: SessionTokenService,
+  sessionRepository: SessionRepository,
   userRepository: UserRepository,
   roleRepository: RoleRepository
 ): Promise<CurrentUser> {
-  const user = await getCurrentUser(sessionStore, sessionTokenService, userRepository, roleRepository);
+  const user = await getCurrentUser(sessionStore, sessionTokenService, sessionRepository, userRepository, roleRepository);
   return policyRequireAuthenticated(user);
 }
