@@ -1,6 +1,12 @@
 import type { Role } from '../domain/role';
 import type { CurrentUser } from '../domain/current-user';
-import { sessionStore, sessionTokenService, userRepository, roleRepository } from './composition';
+import {
+  sessionStore,
+  sessionTokenService,
+  sessionRepository,
+  userRepository,
+  roleRepository,
+} from './composition';
 import { getCurrentUser as getCurrentUserUseCase } from '../application/get-current-user.usecase';
 import { requireAuthenticated as requireAuthenticatedUseCase } from '../application/require-authenticated.usecase';
 import { requireRole as requireRoleUseCase } from '../application/require-role.usecase';
@@ -13,12 +19,12 @@ import { requireOwnership as requireOwnershipUseCase } from '../application/requ
 // exactly as before — only the import path changes.
 
 export async function getCurrentUser(): Promise<CurrentUser | null> {
-  return getCurrentUserUseCase(sessionStore, sessionTokenService, userRepository, roleRepository);
+  return getCurrentUserUseCase(sessionStore, sessionTokenService, sessionRepository, userRepository, roleRepository);
 }
 
 /** Like getCurrentUser but throws UnauthenticatedError instead of returning null. */
 export async function requireUser(): Promise<CurrentUser> {
-  return requireAuthenticatedUseCase(sessionStore, sessionTokenService, userRepository, roleRepository);
+  return requireAuthenticatedUseCase(sessionStore, sessionTokenService, sessionRepository, userRepository, roleRepository);
 }
 
 /**
@@ -28,7 +34,7 @@ export async function requireUser(): Promise<CurrentUser> {
  */
 export async function requireRole(roles: Role | Role[]): Promise<CurrentUser> {
   const allowed = Array.isArray(roles) ? roles : [roles];
-  return requireRoleUseCase(sessionStore, sessionTokenService, userRepository, roleRepository, allowed);
+  return requireRoleUseCase(sessionStore, sessionTokenService, sessionRepository, userRepository, roleRepository, allowed);
 }
 
 /** Explicit "any of these roles" alias for readability at call sites. */
@@ -45,5 +51,5 @@ export async function requireOwnership(
   ownerId: number,
   opts?: { allowRoles?: Role[] }
 ): Promise<CurrentUser> {
-  return requireOwnershipUseCase(sessionStore, sessionTokenService, userRepository, roleRepository, ownerId, opts);
+  return requireOwnershipUseCase(sessionStore, sessionTokenService, sessionRepository, userRepository, roleRepository, ownerId, opts);
 }
