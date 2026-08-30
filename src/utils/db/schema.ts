@@ -1,4 +1,4 @@
-import {integer, varchar, pgTable,serial,text, jsonb, timestamp,boolean, index, pgEnum, unique, check} from 'drizzle-orm/pg-core';
+import {integer, varchar, pgTable,serial,text, jsonb, timestamp,boolean, index, pgEnum, unique, check, primaryKey} from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 
 // ---------------------------------------------------------------------------
@@ -236,4 +236,28 @@ export const UserIdentities = pgTable('user_identities', {
         'user_identities_password_hash_matches_provider',
         sql`(${table.provider} = 'password' AND ${table.passwordHash} IS NOT NULL) OR (${table.provider} <> 'password' AND ${table.passwordHash} IS NULL)`
     ),
+}));
+
+// ---------------------------------------------------------------------------
+// Rate limiting (KWM-054) — fixed-window counters shared across instances.
+//
+// Lives in Postgres rather than Redis deliberately: a serverless deployment
+// runs many instances, so a per-process counter bounds nothing, and the
+// project already runs Neon. Behind the RateLimiter port, swapping this for
+// Upstash later is one adapter.
+//
+// `window_start` is the window's epoch-aligned start, so concurrent requests
+// agree on which bucket they are incrementing without coordinating. The
+// composite primary key is what makes the increment a single atomic
+// INSERT … ON CONFLICT DO UPDATE rather than a racy read-then-write.
+// ---------------------------------------------------------------------------
+export const RateLimitCounters = pgTable('rate_limit_counters', {
+    bucketKey: varchar('bucket_key', { length: 255 }).notNull(),
+    windowStart: timestamp('window_start').notNull(),
+    count: integer('count').notNull().default(0),
+    expiresAt: timestamp('expires_at').notNull(),
+}, (table) => ({
+    pk: primaryKey({ columns: [table.bucketKey, table.windowStart] }),
+    // Sweeping expired rows is a range scan over this, not a table scan.
+    expiresAtIdx: index('rate_limit_counters_expires_at_idx').on(table.expiresAt),
 }));
