@@ -12,6 +12,13 @@ import {
 // record a collection against a report, because recording one is what a
 // collector gets credited for.
 
+vi.mock('@/shared/presentation/composition', async () => {
+  const { buildSharedComposition } = await import(
+    '@/modules/auth/presentation/action-auth.test-support'
+  );
+  return buildSharedComposition();
+});
+
 vi.mock('@/modules/auth/presentation/composition', async () => {
   const { buildAuthComposition } = await import(
     '@/modules/auth/presentation/action-auth.test-support'

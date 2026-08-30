@@ -12,6 +12,13 @@ import {
 // points onto another user's balance. An unguarded mint is a free-money bug,
 // so the role boundary around it is asserted from both sides.
 
+vi.mock('@/shared/presentation/composition', async () => {
+  const { buildSharedComposition } = await import(
+    '@/modules/auth/presentation/action-auth.test-support'
+  );
+  return buildSharedComposition();
+});
+
 vi.mock('@/modules/auth/presentation/composition', async () => {
   const { buildAuthComposition } = await import(
     '@/modules/auth/presentation/action-auth.test-support'

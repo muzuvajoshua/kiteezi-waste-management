@@ -13,6 +13,13 @@ import {
 // caller (admins excepted). It is also the only place the codebase converts a
 // FORBIDDEN Result back into a throw, so that behaviour is pinned here too.
 
+vi.mock('@/shared/presentation/composition', async () => {
+  const { buildSharedComposition } = await import(
+    '@/modules/auth/presentation/action-auth.test-support'
+  );
+  return buildSharedComposition();
+});
+
 vi.mock('@/modules/auth/presentation/composition', async () => {
   const { buildAuthComposition } = await import(
     '@/modules/auth/presentation/action-auth.test-support'

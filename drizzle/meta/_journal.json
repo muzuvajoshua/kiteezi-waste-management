@@ -50,6 +50,13 @@
       "when": 1787885370133,
       "tag": "0006_add_user_identities",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1788052462776,
+      "tag": "0007_add_rate_limit_counters",
+      "breakpoints": true
     }
   ]
 }

@@ -46,6 +46,11 @@ export function actionErrorMessage(error: AppError, options: ActionErrorOptions 
       return 'Please sign in to continue.';
     case 'FORBIDDEN':
       return "You don't have permission to do that.";
+    case 'RATE_LIMITED':
+      // Passed through: the server's message states how long to wait, which
+      // is the only actionable part. A generic "slow down" would leave the
+      // user guessing whether to retry in a second or an hour.
+      return error.message.trim() || 'Too many attempts. Please try again shortly.';
     case 'UNEXPECTED':
       return GENERIC;
     default:

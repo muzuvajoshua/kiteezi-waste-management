@@ -13,6 +13,10 @@ export type AppErrorCode =
   | 'UNAUTHENTICATED'
   | 'FORBIDDEN'
   | 'CONFLICT'
+  // Too many attempts in a window (KWM-054). Distinct from FORBIDDEN: the
+  // caller may well be entitled to do this, just not this often, and the
+  // remedy is to wait rather than to obtain permission.
+  | 'RATE_LIMITED'
   | 'UNEXPECTED';
 
 export interface AppError {

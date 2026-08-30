@@ -25,17 +25,23 @@ import { ValidationError } from '@/lib/validation';
 // catches AppError, it only branches on `.code`". This is what makes that
 // true — every action wraps its body here and returns Result<T, AppError>.
 
-const APP_ERROR_CODES: readonly AppErrorCode[] = [
-  'VALIDATION',
-  'NOT_FOUND',
-  'UNAUTHENTICATED',
-  'FORBIDDEN',
-  'CONFLICT',
-  'UNEXPECTED',
-];
+// A Record, not an array. `readonly AppErrorCode[]` accepts a SUBSET, so a
+// newly added code could be omitted here silently and every DomainError
+// carrying it would be mis-mapped to CONFLICT — which is what happened when
+// RATE_LIMITED was added. As a Record keyed by the union, omitting one is a
+// compile error.
+const APP_ERROR_CODES: Record<AppErrorCode, true> = {
+  VALIDATION: true,
+  NOT_FOUND: true,
+  UNAUTHENTICATED: true,
+  FORBIDDEN: true,
+  CONFLICT: true,
+  RATE_LIMITED: true,
+  UNEXPECTED: true,
+};
 
 function isAppErrorCode(code: string): code is AppErrorCode {
-  return (APP_ERROR_CODES as readonly string[]).includes(code);
+  return Object.prototype.hasOwnProperty.call(APP_ERROR_CODES, code);
 }
 
 /**

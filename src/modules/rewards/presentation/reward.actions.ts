@@ -3,6 +3,8 @@
 import { requireUser, requireRole } from '@/modules/auth/presentation/auth-guards';
 import { validate } from '@/lib/validation';
 import { actionResult } from '@/shared/presentation/action-result';
+import { enforceRateLimit, RATE_LIMITS } from '@/shared/presentation/rate-limit';
+import { rateLimiter } from '@/shared/presentation/composition';
 import { type Result, ok } from '@/shared/application/result';
 import type { AppError } from '@/shared/application/app-error';
 import type { Role } from '@/utils/db/schema';
@@ -60,6 +62,9 @@ export async function getAvailableRewards(): Promise<Result<AvailableRewardsOutp
 export async function redeemReward(rewardId: number): Promise<Result<{ balance: number }, AppError>> {
   return actionResult(async () => {
     const me = await requireUser();
+    await enforceRateLimit(rateLimiter, [
+      { scope: 'redeemReward', id: me.userId, policy: RATE_LIMITS.mutationPerUser },
+    ]);
     const { rewardId: id } = validate(redeemRewardSchema, { rewardId });
     return redeemRewardUseCase(rewardTransactionManager, rewardCatalogRepository, {
       userId: me.userId,
@@ -77,7 +82,10 @@ export async function saveReward(
   idempotencyKey?: string
 ): Promise<Result<{ applied: boolean }, AppError>> {
   return actionResult(async () => {
-    await requireRole(COLLECTION_ROLES);
+    const me = await requireRole(COLLECTION_ROLES);
+    await enforceRateLimit(rateLimiter, [
+      { scope: 'saveReward', id: me.userId, policy: RATE_LIMITS.mutationPerUser },
+    ]);
     const input = validate(saveRewardSchema, { recipientUserId, amount, idempotencyKey });
     const result = await earnPoints(rewardTransactionManager, {
       userId: input.recipientUserId,
