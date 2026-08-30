@@ -3,6 +3,8 @@
 import { requireUser } from '@/modules/auth/presentation/auth-guards';
 import { validate } from '@/lib/validation';
 import { actionResult } from '@/shared/presentation/action-result';
+import { enforceRateLimit, RATE_LIMITS } from '@/shared/presentation/rate-limit';
+import { rateLimiter } from '@/shared/presentation/composition';
 import type { Result } from '@/shared/application/result';
 import type { AppError } from '@/shared/application/app-error';
 import { notificationRepository } from './composition';
@@ -35,6 +37,9 @@ export async function markNotificationAsRead(
 ): Promise<Result<void, AppError>> {
   return actionResult(async () => {
     const me = await requireUser();
+    await enforceRateLimit(rateLimiter, [
+      { scope: 'markNotificationAsRead', id: me.userId, policy: RATE_LIMITS.mutationPerUser },
+    ]);
     const { notificationId: id } = validate(markNotificationReadSchema, { notificationId });
     return markNotificationReadUseCase(notificationRepository, me, id);
   });
