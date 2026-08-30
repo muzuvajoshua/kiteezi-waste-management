@@ -26,11 +26,16 @@ Everything here is account and dashboard work. No code changes are required.
 
 ---
 
-## Phase 1 — Neon database
+## Phase 1 — Find your existing Neon database
 
-1. <https://console.neon.tech> → **New Project**. Region: pick the one closest to Kampala (`eu-central-1` is usually the best available).
-2. Name it `kiteezi`.
-3. On the dashboard, find **Connection string**.
+**A Neon database already exists.** Two things in this repository say so: `docs/db/migrations.md` describes `0000_baseline.sql` as safe to replay "against the already-provisioned database", and `scripts/reward-migration-check.mjs` — which connects and runs real queries — notes that "the production DB is empty". Someone ran that.
+
+So this phase is *finding* the connection string, not creating one.
+
+> **Where the confusion came from.** KWM-068 (#78) is titled "Provision Neon **branches**: dev / staging / prod with PITR ≥ 14 days". That is about branch structure and backup retention, not about whether a database exists. The two are easy to conflate — and an absent `DATABASE_URL` in a local `.env` says nothing about what exists remotely.
+
+1. Get the string from wherever it already lives — **Vercel → Settings → Environment Variables**, or the Neon console under your existing project.
+2. If you genuinely have no project: <https://console.neon.tech> → **New Project**, named `kiteezi`, region closest to Kampala (`eu-central-1` is usually the best available).
 
 **⚠️ Take the POOLED string.** Neon offers two, and the difference matters:
 
@@ -86,13 +91,32 @@ That value signs every session cookie. **Changing it later signs everyone out.**
 git check-ignore -v .env    # should print a .gitignore line
 ```
 
-### 2.2 Apply the migrations
+### 2.2 See what is already applied
+
+`drizzle-kit migrate` is **idempotent**: it reads the `__drizzle_migrations` table and applies only what is missing. Running it against a database that already has `0000`–`0005` is safe.
+
+Check first, so you know what is about to change:
+
+```sql
+SELECT table_name FROM information_schema.tables
+WHERE table_schema = 'public' ORDER BY table_name;
+```
+
+| Missing table | Pending migration | Added by |
+|---|---|---|
+| `user_identities` | `0006` | Google OIDC + password auth |
+| `rate_limit_counters` | `0007` | rate limiting |
+| `password_reset_tokens` | `0008` | password reset |
+
+If all three are absent and the older tables are present, only `0006`–`0008` will run.
+
+### 2.3 Apply the migrations
 
 ```bash
 npm run db:migrate
 ```
 
-This applies `0000` through `0008` in order and records them in a `__drizzle_migrations` table.
+**Read the output for `0006`.** That is the migration whose snapshot drift was fixed in #120. If an earlier attempt already created `user_identities`, its `CHECK` constraint could collide — the statement is guarded with `duplicate_object` so it should pass, but this is the one to watch.
 
 **If it fails**, the usual cause is the pooler. Retry with the *direct* connection string:
 
@@ -102,7 +126,7 @@ DATABASE_URL='<direct string>' npm run db:migrate
 
 Then put the pooled one back in `.env` for the app. Migrating over a direct connection and running over the pooler is normal.
 
-### 2.3 Check what landed
+### 2.4 Check what landed
 
 ```bash
 npm run db:studio
