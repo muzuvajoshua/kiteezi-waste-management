@@ -35,4 +35,15 @@ export class InMemoryIdentityRepository implements IdentityRepository {
     this.byKey.set(key, record);
     return record;
   }
+
+  async updatePasswordHash(userId: number, passwordHash: string): Promise<boolean> {
+    let updated = false;
+    for (const [key, record] of this.byKey) {
+      if (record.userId === userId && record.provider === 'password') {
+        this.byKey.set(key, { ...record, passwordHash });
+        updated = true;
+      }
+    }
+    return updated;
+  }
 }
