@@ -56,4 +56,15 @@ export class DrizzleIdentityRepository implements IdentityRepository {
 
     return row;
   }
+
+  async updatePasswordHash(userId: number, passwordHash: string): Promise<boolean> {
+    const updated = await db
+      .update(UserIdentities)
+      .set({ passwordHash })
+      .where(and(eq(UserIdentities.userId, userId), eq(UserIdentities.provider, 'password')))
+      .returning({ userId: UserIdentities.userId })
+      .execute();
+
+    return updated.length > 0;
+  }
 }
