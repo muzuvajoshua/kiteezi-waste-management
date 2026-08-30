@@ -28,4 +28,18 @@ export interface IdentityRepository {
   ): Promise<IdentityRecord | null>;
 
   link(input: LinkIdentityInput): Promise<IdentityRecord>;
+
+  /**
+   * Replaces the stored password hash for a user's password identity.
+   *
+   * Keyed on userId rather than the address, because a reset is authorised by
+   * a token that resolves to a user — never by a caller-supplied email, which
+   * would let whoever holds one token rewrite a different account's password.
+   *
+   * Returns false when the user has no password identity to update. The
+   * caller needs that signal: a token resolving to a user who no longer has
+   * one must be reported, not treated as a silent success that tells the
+   * person their password changed when nothing did.
+   */
+  updatePasswordHash(userId: number, passwordHash: string): Promise<boolean>;
 }
