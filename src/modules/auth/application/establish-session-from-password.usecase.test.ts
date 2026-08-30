@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { InMemorySessionRepository } from '../infrastructure/in-memory-session-repository.adapter';
 import { InMemorySessionStore } from '../infrastructure/in-memory-session-store.adapter';
 import { InMemorySessionTokenService } from '../infrastructure/in-memory-session-token-service.adapter';
 import { InMemoryUserRepository } from '../infrastructure/in-memory-user-repository.adapter';
@@ -18,6 +19,7 @@ function setup() {
     roleRepository: new InMemoryRoleRepository(),
     sessionTokenService: new InMemorySessionTokenService(),
     sessionStore: new InMemorySessionStore(),
+    sessionRepository: new InMemorySessionRepository(),
   };
 }
 
@@ -32,6 +34,7 @@ async function withRegisteredUser(email = 'citizen@example.com', password = 'cor
     deps.roleRepository,
     deps.sessionTokenService,
     deps.sessionStore,
+    deps.sessionRepository,
     { email, password, name: 'Registered Citizen' }
   );
   await deps.sessionStore.clear(); // registration signs in; start these tests signed out
@@ -45,6 +48,7 @@ function signIn(deps: Deps, input: { email: string; password: string }) {
     deps.userRepository,
     deps.sessionTokenService,
     deps.sessionStore,
+    deps.sessionRepository,
     input
   );
 }
@@ -141,6 +145,7 @@ describe('establishSessionFromPassword', () => {
         deps.userRepository,
         deps.sessionTokenService,
         deps.sessionStore,
+    deps.sessionRepository,
         { email: 'nobody@example.com', password: 'anything' }
       );
 
