@@ -7,7 +7,6 @@ import {
   Bell,
   Leaf,
   Menu,
-  LogIn,
   Search,
   Coins,
   User,
@@ -31,8 +30,8 @@ import { getUserBalance } from "@/modules/rewards/presentation/reward.actions";
 import toast from "react-hot-toast";
 import { actionErrorMessage } from "@/lib/action-error";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
-import { useWeb3Auth } from "@/components/Web3AuthProvider";
-import { useSession } from "@/hooks/useSession";
+import { useGoogleAuth } from "@/components/GoogleAuthProvider";
+import { GoogleSignInButton } from "@/components/GoogleSignInButton";
 
 // Custom notification type to avoid conflict with browser's Notification API
 interface NotificationItem {
@@ -50,10 +49,11 @@ interface HeaderProps {
 }
 
 export default function Header({ onMenuClick }: HeaderProps) {
-  const { user, isReady, login, logout } = useWeb3Auth();
-  // Identity for data fetching comes from the server session (cookie-derived),
-  // not from the client Web3Auth object. Web3Auth still drives login/logout UI.
-  const { user: sessionUser } = useSession();
+  const { user, logout } = useGoogleAuth();
+  // One source of identity: GoogleAuthProvider resolves it from the server
+  // session (/api/auth/me) and keeps it current through sign-in and logout,
+  // so there is no second useSession() call to drift from it.
+  const sessionUser = user;
   const [notification, setNotification] = useState<NotificationItem[]>([]);
   const [balance, setBalance] = useState(0);
   const isMobile = useMediaQuery("(max-width: 768px)");
@@ -192,14 +192,18 @@ export default function Header({ onMenuClick }: HeaderProps) {
             </span>
           </div>
           {!loggedIn ? (
-            <Button
-              onClick={login}
-              disabled={!isReady}
-              className="bg-green-600 hover:bg-green-700 text-white text-sm md:text-base disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isReady ? "Login" : "Initializing..."}
-              <LogIn className="ml-1 md:ml-2 h-4 w-4 md:h-5 md:w-5" />
-            </Button>
+            // Google inline for one-click, plus a link to /sign-in for the
+            // email/password form — that flow needs more room than the header
+            // has, and a password field in a header invites mis-typing.
+            <div className="flex items-center gap-2">
+              <GoogleSignInButton />
+              <Link
+                href="/sign-in"
+                className="whitespace-nowrap text-sm font-medium text-green-700 underline hover:text-green-800"
+              >
+                Use email
+              </Link>
+            </div>
           ) : (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -210,13 +214,13 @@ export default function Header({ onMenuClick }: HeaderProps) {
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuItem>
-                  {user ? user.name : "User"}
+                  {user?.name ?? "User"}
                 </DropdownMenuItem>
                 <DropdownMenuItem>
                   <Link href="/settings">Profile</Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem>Settings</DropdownMenuItem>
-                <DropdownMenuItem onClick={logout}>Sign Out</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => void logout()}>Sign Out</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           )}

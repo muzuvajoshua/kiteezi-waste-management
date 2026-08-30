@@ -12,6 +12,34 @@ describe('actionErrorMessage', () => {
     );
   });
 
+  it('keeps a sign-in failure message instead of telling them to sign in', () => {
+    // The sign-in form itself returns UNAUTHENTICATED for bad credentials.
+    // Rewriting that to "Please sign in to continue." is nonsense on the very
+    // form they are signing in with, so an explicit `signIn` context opts out
+    // of the rewrite. The credential message is deliberately vague already —
+    // it never distinguishes a wrong password from an unknown address.
+    expect(
+      actionErrorMessage(appError('UNAUTHENTICATED', 'Incorrect email address or password.'), {
+        context: 'signIn',
+      })
+    ).toBe('Incorrect email address or password.');
+  });
+
+  it('falls back to a generic sign-in message when the server sent none', () => {
+    expect(actionErrorMessage(appError('UNAUTHENTICATED', ''), { context: 'signIn' })).toBe(
+      'Incorrect email address or password.'
+    );
+  });
+
+  it('still hides raw fault text in sign-in context', () => {
+    expect(
+      actionErrorMessage(
+        { code: 'UNEXPECTED', message: 'ECONNREFUSED password=hunter2' },
+        { context: 'signIn' }
+      )
+    ).toBe('Something went wrong. Please try again.');
+  });
+
   it('tells a forbidden user they lack permission', () => {
     expect(actionErrorMessage(appError('FORBIDDEN', 'Insufficient permissions'))).toBe(
       "You don't have permission to do that."
@@ -30,6 +58,16 @@ describe('actionErrorMessage', () => {
     expect(
       actionErrorMessage(appError('CONFLICT', 'Insufficient points for this redemption'))
     ).toBe('Insufficient points for this redemption');
+  });
+
+  it('passes the rate-limit message through, since it says how long to wait', () => {
+    expect(
+      actionErrorMessage(appError('RATE_LIMITED', 'Too many attempts. Please try again in 42 seconds.'))
+    ).toBe('Too many attempts. Please try again in 42 seconds.');
+  });
+
+  it('falls back to a usable message when a rate-limit error carries none', () => {
+    expect(actionErrorMessage(appError('RATE_LIMITED', ''))).toMatch(/too many attempts/i);
   });
 
   it('reports a not-found plainly', () => {
@@ -57,6 +95,7 @@ describe('actionErrorMessage', () => {
       'UNAUTHENTICATED',
       'FORBIDDEN',
       'CONFLICT',
+      'RATE_LIMITED',
       'UNEXPECTED',
     ] as const;
 

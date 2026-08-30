@@ -3,6 +3,8 @@
 import { requireRole } from '@/modules/auth/presentation/auth-guards';
 import { validate } from '@/lib/validation';
 import { actionResult } from '@/shared/presentation/action-result';
+import { enforceRateLimit, RATE_LIMITS } from '@/shared/presentation/rate-limit';
+import { rateLimiter } from '@/shared/presentation/composition';
 import type { Result } from '@/shared/application/result';
 import type { AppError } from '@/shared/application/app-error';
 import type { Role } from '@/utils/db/schema';
@@ -37,6 +39,9 @@ export async function createCollectedWaste(
 ): Promise<Result<CollectedWaste, AppError>> {
   return actionResult(async () => {
     const me = await requireRole(COLLECTION_ROLES);
+    await enforceRateLimit(rateLimiter, [
+      { scope: 'createCollectedWaste', id: me.userId, policy: RATE_LIMITS.mutationPerUser },
+    ]);
     const { reportId: id } = validate(collectedWasteSchema, { reportId });
     return recordCollection(collectedWasteRepository, {
       reportId: id,
@@ -51,6 +56,9 @@ export async function saveCollectedWaste(
 ): Promise<Result<CollectedWaste, AppError>> {
   return actionResult(async () => {
     const me = await requireRole(COLLECTION_ROLES);
+    await enforceRateLimit(rateLimiter, [
+      { scope: 'saveCollectedWaste', id: me.userId, policy: RATE_LIMITS.mutationPerUser },
+    ]);
     const { reportId: id } = validate(collectedWasteSchema, { reportId });
     return recordCollection(collectedWasteRepository, {
       reportId: id,

@@ -3,6 +3,8 @@
 import { requireUser, requireRole } from '@/modules/auth/presentation/auth-guards';
 import { validate } from '@/lib/validation';
 import { actionResult } from '@/shared/presentation/action-result';
+import { enforceRateLimit, RATE_LIMITS } from '@/shared/presentation/rate-limit';
+import { rateLimiter } from '@/shared/presentation/composition';
 import type { Result } from '@/shared/application/result';
 import type { AppError } from '@/shared/application/app-error';
 import type { Role } from '@/utils/db/schema';
@@ -50,6 +52,9 @@ export async function createReport(
 ): Promise<Result<Report, AppError>> {
   return actionResult(async () => {
     const me = await requireUser();
+    await enforceRateLimit(rateLimiter, [
+      { scope: 'createReport', id: me.userId, policy: RATE_LIMITS.mutationPerUser },
+    ]);
     const input = validate(createReportSchema, { location, wasteType, amount, imageUrl });
 
     return createReportUseCase(reportTransactionManager, notificationRepository, {
@@ -83,6 +88,9 @@ export async function updateTaskStatus(
   return actionResult(async () => {
     // The acting operator claims the task; collector is the session user.
     const me = await requireRole(COLLECTION_ROLES);
+    await enforceRateLimit(rateLimiter, [
+      { scope: 'updateTaskStatus', id: me.userId, policy: RATE_LIMITS.mutationPerUser },
+    ]);
     const input = validate(updateTaskStatusSchema, { reportId, newStatus });
     return updateTaskStatusUseCase(reportRepository, input.reportId, input.newStatus, me.userId);
   });
@@ -102,7 +110,10 @@ export async function updateReportStatus(
   status: ReportStatus
 ): Promise<Result<Report | null, AppError>> {
   return actionResult(async () => {
-    await requireRole(REVIEW_ROLES);
+    const me = await requireRole(REVIEW_ROLES);
+    await enforceRateLimit(rateLimiter, [
+      { scope: 'updateReportStatus', id: me.userId, policy: RATE_LIMITS.mutationPerUser },
+    ]);
     const input = validate(updateReportStatusSchema, { reportId, status });
     return updateReportStatusUseCase(reportRepository, input.reportId, input.status);
   });

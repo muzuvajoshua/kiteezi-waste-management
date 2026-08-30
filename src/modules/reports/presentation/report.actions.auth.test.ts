@@ -18,6 +18,13 @@ import {
 // are for) so the real auth-guards, real require-* use-cases and real domain
 // authorization policy all execute. Nothing about the guard chain is mocked.
 
+vi.mock('@/shared/presentation/composition', async () => {
+  const { buildSharedComposition } = await import(
+    '@/modules/auth/presentation/action-auth.test-support'
+  );
+  return buildSharedComposition();
+});
+
 vi.mock('@/modules/auth/presentation/composition', async () => {
   const { buildAuthComposition } = await import(
     '@/modules/auth/presentation/action-auth.test-support'

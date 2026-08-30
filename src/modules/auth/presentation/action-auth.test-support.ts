@@ -77,6 +77,22 @@ export async function buildAuthComposition() {
   };
 }
 
+/**
+ * In-memory stand-in for the SHARED composition root
+ * (@/shared/presentation/composition). Call from inside a `vi.mock` factory;
+ * like buildAuthComposition it must stay free of closure variables.
+ *
+ * Needed because the real one constructs a Drizzle-backed rate limiter, which
+ * reaches utils/db/dbConfig.ts and throws at import when DATABASE_URL is
+ * unset — the same wall that made actions untestable before this file existed.
+ */
+export async function buildSharedComposition() {
+  const { InMemoryRateLimiter } = await import(
+    '@/shared/infrastructure/rate-limit/in-memory-rate-limiter.adapter'
+  );
+  return { rateLimiter: new InMemoryRateLimiter() };
+}
+
 export interface SignInOptions {
   readonly userId?: number;
   readonly email?: string;
@@ -99,6 +115,10 @@ export interface AuthHarness {
    * different id cannot influence a later test.
    */
   reset(): Promise<void>;
+}
+
+interface MockedShared {
+  rateLimiter: { clear(): void };
 }
 
 interface MockedComposition {
@@ -143,6 +163,11 @@ export function authHarness(): AuthHarness {
 
     async reset() {
       await this.signOut();
+      // Counters are cleared too: every case in an action suite signs in as
+      // the same default user, so a shared budget would run out partway
+      // through and fail cases for the wrong reason.
+      const shared = (await import('@/shared/presentation/composition')) as unknown as MockedShared;
+      shared.rateLimiter.clear();
     },
   };
 }
