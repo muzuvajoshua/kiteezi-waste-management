@@ -1,4 +1,6 @@
 import { describe, it, expect } from 'vitest';
+import { startSession } from './start-session';
+import { InMemorySessionRepository } from '../infrastructure/in-memory-session-repository.adapter';
 import { InMemorySessionStore } from '../infrastructure/in-memory-session-store.adapter';
 import { InMemorySessionTokenService } from '../infrastructure/in-memory-session-token-service.adapter';
 import { InMemoryUserRepository } from '../infrastructure/in-memory-user-repository.adapter';
@@ -11,10 +13,11 @@ async function signedInAs(userId: number, roles: ('citizen' | 'operator' | 'supe
   const sessionTokenService = new InMemorySessionTokenService();
   const userRepository = new InMemoryUserRepository();
   const roleRepository = new InMemoryRoleRepository();
+  const sessionRepository = new InMemorySessionRepository();
   userRepository.seed({ id: userId, email: 'a@example.com', name: 'Ada' });
   roleRepository.seedRoles(userId, roles);
-  await sessionStore.set(await sessionTokenService.sign({ userId }));
-  return { sessionStore, sessionTokenService, userRepository, roleRepository };
+  await startSession(sessionTokenService, sessionStore, sessionRepository, userId);
+  return { sessionStore, sessionTokenService, sessionRepository, userRepository, roleRepository };
 }
 
 describe('requireRole', () => {
@@ -23,15 +26,16 @@ describe('requireRole', () => {
     const sessionTokenService = new InMemorySessionTokenService();
     const userRepository = new InMemoryUserRepository();
     const roleRepository = new InMemoryRoleRepository();
+  const sessionRepository = new InMemorySessionRepository();
     await expect(
-      requireRole(sessionStore, sessionTokenService, userRepository, roleRepository, ['admin'])
+      requireRole(sessionStore, sessionTokenService, sessionRepository, userRepository, roleRepository, ['admin'])
     ).rejects.toBeInstanceOf(UnauthenticatedError);
   });
 
   it('rejects a citizen asking for admin', async () => {
     const deps = await signedInAs(1, ['citizen']);
     await expect(
-      requireRole(deps.sessionStore, deps.sessionTokenService, deps.userRepository, deps.roleRepository, ['admin'])
+      requireRole(deps.sessionStore, deps.sessionTokenService, deps.sessionRepository, deps.userRepository, deps.roleRepository, ['admin'])
     ).rejects.toBeInstanceOf(ForbiddenError);
   });
 
@@ -40,6 +44,7 @@ describe('requireRole', () => {
     const user = await requireRole(
       deps.sessionStore,
       deps.sessionTokenService,
+      deps.sessionRepository,
       deps.userRepository,
       deps.roleRepository,
       ['admin']
