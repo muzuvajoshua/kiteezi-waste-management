@@ -1,7 +1,12 @@
 "use server";
 
+import { headers } from 'next/headers';
 import { validate } from '@/lib/validation';
 import { actionResult } from '@/shared/presentation/action-result';
+import { clientIpFrom } from '@/shared/presentation/client-identity';
+import { enforceRateLimit, RATE_LIMITS } from '@/shared/presentation/rate-limit';
+import { rateLimiter } from '@/shared/presentation/composition';
+import { normaliseEmail } from '../domain/password';
 import type { Result } from '@/shared/application/result';
 import type { AppError } from '@/shared/application/app-error';
 import {
@@ -32,10 +37,14 @@ export interface AuthenticatedUser {
 // the codebase without requireUser/requireRole, which is why they are
 // separated from the guarded ones rather than mixed among them.
 //
-// ⚠️ NOT RATE LIMITED. Sign-in is the classic credential-stuffing target and
-// nothing here throttles attempts — scrypt's ~240ms cost raises the price of
-// an attack but does not bound it. KWM-054 (#64) must land before this is
-// exposed to real users.
+// Rate limited per KWM-054. Sign-in is limited per EMAIL more tightly than
+// per IP: the email is what an attacker cannot rotate while still attacking
+// one account, whereas addresses are cheap. See shared/presentation/rate-limit.ts.
+//
+// Limits are applied AFTER validation, so the key is the normalised address
+// rather than whatever was typed. An attacker sending input that fails
+// validation therefore consumes no budget — but that path costs only a Zod
+// parse, never a scrypt hash, so it buys them nothing.
 
 export async function registerWithEmailPassword(
   email: string,
@@ -44,6 +53,17 @@ export async function registerWithEmailPassword(
 ): Promise<Result<AuthenticatedUser, AppError>> {
   return actionResult(async () => {
     const input = validate(registerSchema, { email, password, name });
+
+    // Per-IP only: there is no account to protect yet, and limiting per
+    // submitted email would let an attacker mint unlimited buckets by varying
+    // the address — the opposite of a limit.
+    await enforceRateLimit(rateLimiter, [
+      {
+        scope: 'register:ip',
+        id: clientIpFrom(await headers()),
+        policy: RATE_LIMITS.registerPerIp,
+      },
+    ]);
 
     return registerWithPassword(
       passwordHasher,
@@ -63,6 +83,15 @@ export async function signInWithEmailPassword(
 ): Promise<Result<AuthenticatedUser, AppError>> {
   return actionResult(async () => {
     const input = validate(passwordSignInSchema, { email, password });
+
+    await enforceRateLimit(rateLimiter, [
+      {
+        scope: 'signIn:email',
+        id: normaliseEmail(input.email),
+        policy: RATE_LIMITS.signInPerEmail,
+      },
+      { scope: 'signIn:ip', id: clientIpFrom(await headers()), policy: RATE_LIMITS.signInPerIp },
+    ]);
 
     return establishSessionFromPassword(
       passwordHasher,
