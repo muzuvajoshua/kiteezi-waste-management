@@ -12,7 +12,7 @@ Everything here is account and dashboard work. No code changes are required.
 
 **Order is not arbitrary.** Sessions, rate limiting and reset tokens all write to the database, so nothing works before Phase 1. You cannot make yourself an admin until you have signed in once, which needs Google working. Phases 1 → 4 are a chain; Phase 5 is independent.
 
-**What you will need:** a Neon account, a Google Cloud account, and — for Phase 5 only — a Resend account and a domain you control.
+**What you will need:** a Neon account, a Google Cloud account, and — for Phase 5 only — a Resend account. A domain is required only to send mail to anyone other than yourself; Phase 5 covers the no-domain path too.
 
 | Phase | What | Time | Blocks |
 |---|---|---|---|
@@ -229,11 +229,41 @@ If those two agree, the transaction handling, the ledger invariant and the verti
 
 Password reset works locally without this: `EMAIL_TRANSPORT='console'` prints the link to your terminal, and pasting it into the browser completes the flow. **Do that first** — it verifies the reset logic before you involve DNS.
 
-For real email:
+### Option A — no domain (`resend.dev`)
 
-1. <https://resend.com> → sign up.
-2. **Domains → Add Domain**. You need a domain you control; Resend will not send from an address you cannot prove.
-3. Resend shows DNS records to publish — typically:
+Resend provides a shared test sender needing no domain and no DNS. Its limit
+is real and worth understanding before relying on it:
+
+> the `resend.dev` domain can only send to **the email address associated with
+> your Resend account**. Anyone else gets a 403.
+
+That is enough to prove the integration works — the API key, the request the
+adapter builds, and a real email arriving with a working link — which is the
+one thing unit tests cannot show. It is **not** enough for other people to
+receive mail.
+
+1. <https://resend.com> → sign up **with the address you want to receive test
+   mail at**. That is the only address that will work.
+2. **API Keys → Create**, with sending access.
+3. Configure:
+
+```bash
+RESEND_API_KEY='re_...'
+EMAIL_FROM='Kiteezi <onboarding@resend.dev>'
+EMAIL_TRANSPORT=''          # empty or removed — 'console' sends nothing
+```
+
+⚠️ **If you set this in production**, password reset will appear to work for
+everyone while only your address receives anything. Everyone else gets a
+silent 403 — logged server-side, reported to the user as success, because the
+form must not become an account enumerator. Fine while you are the only user;
+move to Option B before that stops being true.
+
+### Option B — your own domain (needed for real users)
+
+1. <https://resend.com> → **Domains → Add Domain**. You need a domain you
+   control; Resend will not send from an address you cannot prove.
+2. Resend shows DNS records to publish — typically:
    - a **TXT** record for SPF
    - one or more **CNAME** or **TXT** records for DKIM
    - optionally a **TXT** for DMARC
