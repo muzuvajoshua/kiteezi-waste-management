@@ -954,7 +954,12 @@
         }
       },
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "user_identities_password_hash_matches_provider": {
+          "name": "user_identities_password_hash_matches_provider",
+          "value": "(\"user_identities\".\"provider\" = 'password' AND \"user_identities\".\"password_hash\" IS NOT NULL) OR (\"user_identities\".\"provider\" <> 'password' AND \"user_identities\".\"password_hash\" IS NULL)"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.user_reward_balance": {
