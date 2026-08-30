@@ -261,3 +261,28 @@ export const RateLimitCounters = pgTable('rate_limit_counters', {
     // Sweeping expired rows is a range scan over this, not a table scan.
     expiresAtIdx: index('rate_limit_counters_expires_at_idx').on(table.expiresAt),
 }));
+
+// ---------------------------------------------------------------------------
+// Password reset (KWM-059).
+//
+// `token_hash` stores a SHA-256 of the token, never the token itself: a
+// database leak would otherwise hand an attacker a working reset link for
+// every pending request. SHA-256 rather than scrypt is deliberate — the token
+// is 256 bits of CSPRNG output, so there is nothing to brute-force and a slow
+// KDF would add latency for no security.
+//
+// `used_at` makes a token single-use: without it a reset link stays valid for
+// its whole lifetime, so anyone who later reads the mailbox (or a forwarded
+// message, or a proxy log) can reset the password again.
+// ---------------------------------------------------------------------------
+export const PasswordResetTokens = pgTable('password_reset_tokens', {
+    id: serial('id').primaryKey(),
+    userId: integer('user_id').notNull().references(() => Users.id, { onDelete: 'cascade' }),
+    tokenHash: varchar('token_hash', { length: 64 }).notNull().unique(),
+    expiresAt: timestamp('expires_at').notNull(),
+    usedAt: timestamp('used_at'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (table) => ({
+    userIdIdx: index('password_reset_tokens_user_id_idx').on(table.userId),
+    expiresAtIdx: index('password_reset_tokens_expires_at_idx').on(table.expiresAt),
+}));

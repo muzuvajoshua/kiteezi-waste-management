@@ -52,6 +52,10 @@ export const RATE_LIMITS = {
   signInPerIp: { limit: 20, windowSeconds: 300 },
   /** Automated account creation. */
   registerPerIp: { limit: 5, windowSeconds: 3600 },
+  /** Reset-link spam aimed at one person's inbox. */
+  passwordResetPerEmail: { limit: 3, windowSeconds: 3600 },
+  /** Reset requests, and guesses at a reset token, from one source. */
+  passwordResetPerIp: { limit: 10, windowSeconds: 3600 },
   /** Ordinary authenticated writes — high enough to never bother a real user. */
   mutationPerUser: { limit: 30, windowSeconds: 60 },
 } as const satisfies Record<string, RateLimitPolicy>;

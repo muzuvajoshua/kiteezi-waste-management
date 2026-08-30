@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { actionErrorMessage } from "@/lib/action-error";
@@ -153,6 +154,14 @@ export function EmailPasswordForm({
             ? "Create account"
             : "Sign in"}
       </Button>
+
+      {!isRegistering && (
+        <p className="text-center text-sm">
+          <Link href="/forgot-password" className="text-green-700 underline hover:text-green-800">
+            Forgot your password?
+          </Link>
+        </p>
+      )}
 
       <p className="text-center text-sm text-gray-600">
         {isRegistering ? "Already have an account?" : "No account yet?"}{" "}
