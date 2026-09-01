@@ -3,6 +3,8 @@ import { ResendEmailSender } from '@/shared/infrastructure/email/resend-email-se
 import { ConsoleEmailSender } from '@/shared/infrastructure/email/console-email-sender.adapter';
 import type { RateLimiter } from '@/shared/application/ports/rate-limiter.port';
 import type { EmailSender } from '@/shared/application/ports/email-sender.port';
+import { DrizzleAuditLogger } from '@/shared/infrastructure/audit/drizzle-audit-logger.adapter';
+import type { AuditLogger } from '@/shared/application/ports/audit-logger.port';
 
 // Shared slice of the composition root, for adapters no single module owns.
 //
@@ -19,3 +21,9 @@ export const rateLimiter: RateLimiter = new DrizzleRateLimiter();
 // development, where there is no Resend key; anything else sends for real.
 export const emailSender: EmailSender =
   process.env.EMAIL_TRANSPORT === 'console' ? new ConsoleEmailSender() : new ResendEmailSender();
+
+// KWM-078. The audit_log table and its helper shipped in June (KWM-016) and
+// nothing ever called them, so the log was guaranteed empty — anyone reading
+// the schema would wrongly conclude an audit trail existed. This is what
+// makes it real.
+export const auditLogger: AuditLogger = new DrizzleAuditLogger();
