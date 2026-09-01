@@ -4,7 +4,7 @@ import { requireUser, requireRole } from '@/modules/auth/presentation/auth-guard
 import { validate } from '@/lib/validation';
 import { actionResult } from '@/shared/presentation/action-result';
 import { enforceRateLimit, RATE_LIMITS } from '@/shared/presentation/rate-limit';
-import { rateLimiter } from '@/shared/presentation/composition';
+import { rateLimiter, auditLogger } from '@/shared/presentation/composition';
 import type { Result } from '@/shared/application/result';
 import type { AppError } from '@/shared/application/app-error';
 import type { Role } from '@/utils/db/schema';
@@ -92,7 +92,25 @@ export async function updateTaskStatus(
       { scope: 'updateTaskStatus', id: me.userId, policy: RATE_LIMITS.mutationPerUser },
     ]);
     const input = validate(updateTaskStatusSchema, { reportId, newStatus });
-    return updateTaskStatusUseCase(reportRepository, input.reportId, input.newStatus, me.userId);
+    const result = await updateTaskStatusUseCase(
+      reportRepository,
+      input.reportId,
+      input.newStatus,
+      me.userId
+    );
+
+    // Recorded only on a real change: a refused caller never reaches here, and
+    // a missing report resolves to ok(null), which is not a mutation.
+    if (result.ok && result.value) {
+      await auditLogger.record({
+        actorUserId: me.userId,
+        action: 'report.task.updated',
+        target: `report:${input.reportId}`,
+        after: { status: result.value.status, collectorId: result.value.collectorId },
+      });
+    }
+
+    return result;
   });
 }
 
@@ -115,7 +133,23 @@ export async function updateReportStatus(
       { scope: 'updateReportStatus', id: me.userId, policy: RATE_LIMITS.mutationPerUser },
     ]);
     const input = validate(updateReportStatusSchema, { reportId, status });
-    return updateReportStatusUseCase(reportRepository, input.reportId, input.status);
+    const result = await updateReportStatusUseCase(reportRepository, input.reportId, input.status);
+
+    if (result.ok && result.value) {
+      await auditLogger.record({
+        actorUserId: me.userId,
+        action: 'report.status.updated',
+        target: `report:${input.reportId}`,
+        // `before` is absent, not forgotten: neither write path reads the
+        // current status first (see domain/report.ts), and adding a read
+        // purely to enrich the log would change the write path's shape for
+        // a nice-to-have. Revisit with KWM-081's transition rules, which
+        // need the prior status anyway.
+        after: { status: result.value.status },
+      });
+    }
+
+    return result;
   });
 }
 
