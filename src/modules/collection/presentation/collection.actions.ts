@@ -4,7 +4,7 @@ import { requireRole } from '@/modules/auth/presentation/auth-guards';
 import { validate } from '@/lib/validation';
 import { actionResult } from '@/shared/presentation/action-result';
 import { enforceRateLimit, RATE_LIMITS } from '@/shared/presentation/rate-limit';
-import { rateLimiter } from '@/shared/presentation/composition';
+import { rateLimiter, auditLogger } from '@/shared/presentation/composition';
 import type { Result } from '@/shared/application/result';
 import type { AppError } from '@/shared/application/app-error';
 import type { Role } from '@/utils/db/schema';
@@ -43,11 +43,24 @@ export async function createCollectedWaste(
       { scope: 'createCollectedWaste', id: me.userId, policy: RATE_LIMITS.mutationPerUser },
     ]);
     const { reportId: id } = validate(collectedWasteSchema, { reportId });
-    return recordCollection(collectedWasteRepository, {
+    const result = await recordCollection(collectedWasteRepository, {
       reportId: id,
       collectorId: me.userId,
       status: 'collected',
     });
+
+    // Recording a collection is what a collector is credited for, so who
+    // claimed which report is exactly what an audit needs to answer.
+    if (result.ok) {
+      await auditLogger.record({
+        actorUserId: me.userId,
+        action: 'collection.recorded',
+        target: `report:${id}`,
+        after: { collectedWasteId: result.value.id, status: 'collected' },
+      });
+    }
+
+    return result;
   });
 }
 
@@ -60,10 +73,23 @@ export async function saveCollectedWaste(
       { scope: 'saveCollectedWaste', id: me.userId, policy: RATE_LIMITS.mutationPerUser },
     ]);
     const { reportId: id } = validate(collectedWasteSchema, { reportId });
-    return recordCollection(collectedWasteRepository, {
+    const result = await recordCollection(collectedWasteRepository, {
       reportId: id,
       collectorId: me.userId,
       status: 'verified',
     });
+
+    // Recording a collection is what a collector is credited for, so who
+    // claimed which report is exactly what an audit needs to answer.
+    if (result.ok) {
+      await auditLogger.record({
+        actorUserId: me.userId,
+        action: 'collection.verified',
+        target: `report:${id}`,
+        after: { collectedWasteId: result.value.id, status: 'verified' },
+      });
+    }
+
+    return result;
   });
 }
