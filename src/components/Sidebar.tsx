@@ -1,17 +1,26 @@
 import Link from "next/link"
 import { usePathname } from 'next/navigation'
 import { Button } from "@/components/ui/button"
-import { MapPin, Trash, Coins, Medal, Settings, Home, ListChecks } from "lucide-react"
+import { MapPin, Trash, Coins, Medal, Settings, Home, ListChecks, ClipboardCheck } from "lucide-react"
 
-// /report and /my-reports exist as of KWM-025/KWM-027. The remaining entries
-// still 404 — they are the original C-10 finding and are tracked by their own
-// issues (KWM-030 /collect, KWM-033 /rewards, and the leaderboard/settings
-// pages). Left in place rather than removed so the intended shape of the app
-// stays visible; each disappears from this list as its page lands.
+// /report and /my-reports exist as of KWM-025/KWM-027, /supervisor/inbox as of
+// KWM-032. The remaining entries still 404 — they are the original C-10
+// finding and are tracked by their own issues (KWM-030 /collect, KWM-033
+// /rewards, and the leaderboard/settings pages). Left in place rather than
+// removed so the intended shape of the app stays visible; each disappears
+// from this list as its page lands.
+//
+// The review queue is listed for everyone, which is wrong but not unsafe: the
+// page's own action refuses anyone without a supervisor or admin role, so a
+// citizen following the link is told they lack permission rather than shown
+// the queue. Hiding it needs the sidebar to know the session's roles, and this
+// is a server-rendered list inside a client component with no session access —
+// a real change, not a one-liner, so it is deliberately not smuggled in here.
 const sidebarItems = [
   { href: "/", icon: Home, label: "Home" },
   { href: "/report", icon: MapPin, label: "Report Waste" },
   { href: "/my-reports", icon: ListChecks, label: "My Reports" },
+  { href: "/supervisor/inbox", icon: ClipboardCheck, label: "Review Queue" },
   { href: "/collect", icon: Trash, label: "Collect Waste" },
   { href: "/rewards", icon: Coins, label: "Rewards" },
   { href: "/leaderboard", icon: Medal, label: "Leaderboard" },

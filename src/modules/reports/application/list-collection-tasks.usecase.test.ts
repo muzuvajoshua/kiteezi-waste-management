@@ -16,6 +16,7 @@ describe('listCollectionTasks', () => {
       status: 'approved',
       createdAt: new Date('2026-03-15T10:30:00.000Z'),
       collectorId: 3,
+      reviewReason: null,
     });
 
     const result = await listCollectionTasks(repository, 10);

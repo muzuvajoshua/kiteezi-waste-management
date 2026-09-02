@@ -16,6 +16,7 @@ describe('updateTaskStatus', () => {
       status: 'approved',
       createdAt: new Date(),
       collectorId: null,
+      reviewReason: null,
     });
 
     const result = await updateTaskStatus(repository, 1, 'collected', 42);
