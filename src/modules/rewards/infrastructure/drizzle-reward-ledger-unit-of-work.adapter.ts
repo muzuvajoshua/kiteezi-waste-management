@@ -38,14 +38,36 @@ export class DrizzleRewardLedgerUnitOfWork implements RewardLedgerUnitOfWork {
 
     if (inserted.length === 0) return false; // duplicate idempotency key — already applied
 
-    await this.tx
-      .insert(UserRewardBalance)
-      .values({ userId: entry.userId, points: entry.amount })
-      .onConflictDoUpdate({
-        target: UserRewardBalance.userId,
-        set: { points: sql`${UserRewardBalance.points} + ${entry.amount}`, updatedAt: new Date() },
-      });
+    // Update first, insert only if there was no row.
+    //
+    // This was a single INSERT … ON CONFLICT DO UPDATE, which cannot apply a
+    // negative amount: Postgres validates CHECK constraints against the
+    // PROPOSED insert tuple before it resolves the conflict, so a redemption
+    // of -8 was rejected by user_reward_balance_points_nonneg however large
+    // the balance was. Redeeming a reward could never succeed. Found by
+    // KWM-063's first run of this adapter against a real database — no
+    // in-memory fake models a CHECK, so nothing above could see it.
+    const updated = await this.tx
+      .update(UserRewardBalance)
+      .set({ points: sql`${UserRewardBalance.points} + ${entry.amount}`, updatedAt: new Date() })
+      .where(eq(UserRewardBalance.userId, entry.userId))
+      .returning({ userId: UserRewardBalance.userId });
 
+    if (updated.length === 0) {
+      // No balance yet. ON CONFLICT still covers the race where a concurrent
+      // transaction created the row between the update and here.
+      await this.tx
+        .insert(UserRewardBalance)
+        .values({ userId: entry.userId, points: entry.amount })
+        .onConflictDoUpdate({
+          target: UserRewardBalance.userId,
+          set: { points: sql`${UserRewardBalance.points} + ${entry.amount}`, updatedAt: new Date() },
+        });
+    }
+
+    // The CHECK is still the guard on the floor: an update that would take
+    // the balance below zero raises here and rolls the ledger entry back with
+    // it, so the two can never disagree.
     return true;
   }
 }
