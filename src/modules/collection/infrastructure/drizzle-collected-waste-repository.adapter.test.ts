@@ -1,6 +1,6 @@
 import { beforeAll, beforeEach, afterAll, describe, it, expect } from 'vitest';
-import { createTestDatabase, type TestDatabase } from '@/test-support/pglite-database';
-import { Users, Reports } from '@/utils/db/schema';
+import { createTestDatabase, seedUsers, type TestDatabase } from '@/test-support/pglite-database';
+import { Reports } from '@/utils/db/schema';
 import { DrizzleCollectedWasteRepository } from './drizzle-collected-waste-repository.adapter';
 import { testCollectedWasteRepositoryContract } from './collected-waste-repository.contract.test-support';
 
@@ -16,20 +16,7 @@ beforeAll(async () => {
 
 beforeEach(async () => {
   await database.reset();
-  // collected_wastes.report_id and .collector_id are real foreign keys here,
-  // which the in-memory fake does not model. The contract writes collections
-  // for report ids 1,2,5,10 and collector ids 1,2,3,7, so those rows must
-  // exist. Seeding generously is deliberate: a contract test failing on a
-  // missing fixture says nothing about the adapter.
-  await database.db
-    .insert(Users)
-    .values(
-      Array.from({ length: 10 }, (_, i) => ({
-        id: i + 1,
-        email: `user${i + 1}@example.com`,
-        name: `User ${i + 1}`,
-      }))
-    );
+  await seedUsers(database.db);
   await database.db.insert(Reports).values(
     Array.from({ length: 10 }, (_, i) => ({
       id: i + 1,
