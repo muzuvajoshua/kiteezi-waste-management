@@ -1,5 +1,5 @@
 import { eq, and, sql, desc } from 'drizzle-orm';
-import { db } from '@/utils/db/dbConfig';
+import type { Database } from '@/shared/infrastructure/persistence/database';
 import { PointTransactions, UserRewardBalance, Users } from '@/utils/db/schema';
 import type {
   RewardRepository,
@@ -13,8 +13,10 @@ import type {
 // unchanged, from utils/db/internal.ts (getBalance/getPointTransactions) and
 // utils/db/actions.ts (getAllRewards).
 export class DrizzleRewardRepository implements RewardRepository {
+  constructor(private readonly db: Database) {}
+
   async getBalance(userId: number): Promise<number> {
-    const [row] = await db
+    const [row] = await this.db
       .select({ points: UserRewardBalance.points })
       .from(UserRewardBalance)
       .where(eq(UserRewardBalance.userId, userId))
@@ -27,7 +29,7 @@ export class DrizzleRewardRepository implements RewardRepository {
     opts: { limit: number; cursor?: PointTransactionCursor }
   ): Promise<PointTransactionPage> {
     const { limit, cursor } = opts;
-    const rows = await db
+    const rows = await this.db
       .select({
         id: PointTransactions.id,
         kind: PointTransactions.kind,
@@ -56,7 +58,7 @@ export class DrizzleRewardRepository implements RewardRepository {
   }
 
   async getAllBalances(): Promise<readonly RewardBalanceRow[]> {
-    return await db
+    return await this.db
       .select({
         userId: UserRewardBalance.userId,
         points: UserRewardBalance.points,
