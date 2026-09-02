@@ -9,7 +9,45 @@ const config: Config = {
   ],
   theme: {
   	extend: {
+  		// Inter, exposed by app/layout.tsx. Without this, `font-sans` resolves
+  		// to Tailwind's own stack and disagrees with the body font.
+  		fontFamily: {
+  			sans: ['var(--font-sans)', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+  		},
   		colors: {
+  			// The brand scale. Every green in this codebase was a hardcoded
+  			// `green-600` literal, so there was no single place to adjust the
+  			// palette and no way to tell a brand green from an incidental one
+  			// — a success badge and a primary button both said `green-600`
+  			// while meaning different things.
+  			//
+  			// Deliberately NOT wired into the shadcn `--primary` variable:
+  			// that is consumed by button/badge/dropdown defaults, and
+  			// repointing it would restyle every existing control at once.
+  			// This scale is additive, so components adopt it as they are
+  			// touched.
+  			brand: {
+  				50: '#f0f9f1',
+  				100: '#dcf0de',
+  				200: '#bbe1c1',
+  				300: '#8ecb99',
+  				400: '#5aad6b',
+  				500: '#358f49',
+  				600: '#237338',
+  				700: '#1c5c2e',
+  				800: '#194a27',
+  				900: '#153d21',
+  				950: '#0a2212',
+  			},
+  			// Headings and high-contrast surfaces. A near-black with a green
+  			// cast rather than pure grey, so dark panels read as part of the
+  			// same palette instead of a separate neutral.
+  			ink: {
+  				700: '#22322a',
+  				800: '#18241e',
+  				900: '#101a15',
+  				950: '#0a110e',
+  			},
   			background: 'hsl(var(--background))',
   			foreground: 'hsl(var(--foreground))',
   			card: {
