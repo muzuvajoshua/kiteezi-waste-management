@@ -2,8 +2,38 @@
 // wasteTypeEnum: the Domain layer must not depend on Drizzle even for a
 // type-only import. Mirrors the rewards/auth modules' PointKind/Role
 // precedent.
-export type ReportStatus = 'pending' | 'approved' | 'in_progress' | 'collected' | 'verified' | 'rejected';
-export type WasteType = 'general' | 'plastic' | 'organic' | 'metal' | 'paper' | 'ewaste' | 'hazardous' | 'other';
+// An array with the type derived from it, rather than a hand-written union.
+// The union alone gave callers no runtime list, so MyReportsView and the
+// landing page each kept their own copy of the six values in lifecycle order —
+// and a status added to the enum would have left both silently incomplete.
+// Same shape as ROLE_NAMES and REVIEW_DECISIONS.
+//
+// Ordered by lifecycle, not alphabetically: both consumers render them in
+// sequence, and `rejected` sits last because it is an exit rather than a step.
+// report.schemas.test.ts asserts this matches the database enum.
+export const REPORT_STATUSES = [
+  'pending',
+  'approved',
+  'in_progress',
+  'collected',
+  'verified',
+  'rejected',
+] as const;
+
+export type ReportStatus = (typeof REPORT_STATUSES)[number];
+
+export const WASTE_TYPES = [
+  'general',
+  'plastic',
+  'organic',
+  'metal',
+  'paper',
+  'ewaste',
+  'hazardous',
+  'other',
+] as const;
+
+export type WasteType = (typeof WASTE_TYPES)[number];
 
 export interface Report {
   readonly id: number;
