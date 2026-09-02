@@ -47,6 +47,8 @@ class DrizzleReportWriteUnitOfWork implements ReportWriteUnitOfWork {
       status: created.status,
       createdAt: created.created_at,
       collectorId: created.collector_id,
+      // A new report has never been reviewed.
+      reviewReason: null,
     };
   }
 }
