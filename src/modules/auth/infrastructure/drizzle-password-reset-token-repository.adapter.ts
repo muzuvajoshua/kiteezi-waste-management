@@ -1,5 +1,5 @@
 import { and, eq, isNull } from 'drizzle-orm';
-import { db } from '@/utils/db/dbConfig';
+import type { Database } from '@/shared/infrastructure/persistence/database';
 import { PasswordResetTokens } from '@/utils/db/schema';
 import type {
   PasswordResetTokenRepository,
@@ -17,8 +17,10 @@ const RECORD_COLUMNS = {
 // The raw token is never selected — it is not stored. Lookups are by hash,
 // which the unique index makes a single-row fetch.
 export class DrizzlePasswordResetTokenRepository implements PasswordResetTokenRepository {
+  constructor(private readonly db: Database) {}
+
   async create(input: CreatePasswordResetTokenInput): Promise<PasswordResetTokenRecord> {
-    const [row] = await db
+    const [row] = await this.db
       .insert(PasswordResetTokens)
       .values({
         userId: input.userId,
@@ -32,7 +34,7 @@ export class DrizzlePasswordResetTokenRepository implements PasswordResetTokenRe
   }
 
   async findByTokenHash(tokenHash: string): Promise<PasswordResetTokenRecord | null> {
-    const [row] = await db
+    const [row] = await this.db
       .select(RECORD_COLUMNS)
       .from(PasswordResetTokens)
       .where(eq(PasswordResetTokens.tokenHash, tokenHash))
@@ -42,7 +44,7 @@ export class DrizzlePasswordResetTokenRepository implements PasswordResetTokenRe
   }
 
   async markUsed(id: number): Promise<void> {
-    await db
+    await this.db
       .update(PasswordResetTokens)
       .set({ usedAt: new Date() })
       .where(eq(PasswordResetTokens.id, id))
@@ -52,7 +54,7 @@ export class DrizzlePasswordResetTokenRepository implements PasswordResetTokenRe
   async invalidateAllForUser(userId: number): Promise<void> {
     // Only unused rows, so an already-consumed token keeps its original
     // usedAt timestamp rather than being rewritten on every later reset.
-    await db
+    await this.db
       .update(PasswordResetTokens)
       .set({ usedAt: new Date() })
       .where(and(eq(PasswordResetTokens.userId, userId), isNull(PasswordResetTokens.usedAt)))
