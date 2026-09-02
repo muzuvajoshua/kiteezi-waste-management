@@ -20,8 +20,52 @@ anchored to, so the figure can be trusted or challenged on the evidence.
 
 ---
 
-## 2. Baseline — measured 2026-08-25
+## 2. Current measurement — 2026-09-02
 
+705 tests, 90 files, after **KWM-063** covered the Drizzle adapters.
+
+| Metric | 2026-08-25 | 2026-09-02 |
+|---|---|---|
+| Statements | 70.00% (497/710) | **86.92%** (971/1117) |
+| Branches | 62.82% (169/269) | **85.06%** (376/442) |
+| Functions | 67.38% (157/233) | **87.97%** (322/366) |
+| Lines | 69.46% (464/668) | **86.51%** (898/1038) |
+
+Per layer:
+
+| Layer | Statements | Reading |
+|---|---|---|
+| Domain | **97.4%** (76/78) | Business rules. Effectively complete. |
+| Application — use-cases | **88.4%** (229/259) | Gaps are mostly `catch` arms. |
+| Infrastructure — Drizzle adapters | **97.5%** (115/118) | Was 12.7%. See below. |
+| Infrastructure — in-memory fakes | **98.3%** (228/232) | Exercised by every use-case test. |
+| Presentation — actions, routes, schemas | **74.1%** (163/220) | Actions covered for authorization, rate limiting and auditing; the API route handlers still are not covered at all. |
+
+The Drizzle row is the whole of the change. Those files went from 12.7% to
+97.5% because every adapter now takes its database connection as a constructor
+argument instead of importing a module-scope `db`, which is what made a second
+contract run possible at all. The runs happen against PGlite — real Postgres,
+compiled to WebAssembly, migrated by the same ten SQL files that ran against
+Neon.
+
+Three defects surfaced in the first hour of those tests existing, none of which
+any in-memory fake could have shown:
+
+| Defect | Why it was invisible |
+|---|---|
+| Redeeming a reward could **never succeed**, at any balance. The balance upsert put the signed amount in the INSERT's `VALUES`, and Postgres validates `CHECK` constraints against the proposed insert tuple *before* resolving the conflict — so `points >= 0` rejected every redemption before the `DO UPDATE` arm that would have computed a valid balance was reached. | No fake models a `CHECK`. |
+| `purgeExpired()` deleted **live** rate-limit counters, not just closed windows. `expires_at` is `timestamp without time zone` holding UTC, and `now()` is a `timestamptz`; comparing them converts `now()` into the session's timezone. Neon defaults to UTC, so it never showed in production — it appeared the first time the adapter ran against a database inheriting the machine's timezone. | No fake has a timezone. |
+| `DrizzleUserRepository` returned `created_at`, a column `UserRecord` does not declare. TypeScript could not object: an over-wide row is still structurally assignable. | The fake returns exactly the declared shape. |
+
+Two of the three are in the two most security- and money-sensitive paths in the
+system, and both had passing use-case, action and authorization tests
+throughout.
+
+---
+
+## 2a. Historical baseline — measured 2026-08-25
+
+Kept for the record; this is what the numbers above are measured against.
 259 tests, 52 files. Totals over the measured set:
 
 | Metric | Coverage |
@@ -42,13 +86,14 @@ The aggregate is the least interesting view. Per architectural layer:
 | `utils/db` | **57.0%** (45/79) | `schema.ts` is largely declarations; `audit.ts` is dead code (report §5.5); `dbConfig.ts`/`txClient.ts` are client construction. |
 | Infrastructure — Drizzle adapters | **12.7%** (13/102) | **The honest headline.** No test executes SQL. |
 
-That last row is the point of the exercise. Every repository has a contract test
-suite, and every suite runs against the in-memory fake only — each file says so
-in its own header. The 12.7% is the number that says "the real persistence layer
-is unverified", and it is why the adapters are **not** excluded from
-measurement: hiding them would raise the aggregate by roughly 10 points and
-erase the most important thing the report can tell you. Tracked as **KWM-063**
-(contract suites against a real Postgres).
+That last row was the point of the exercise. Every repository had a contract
+test suite, and every suite ran against the in-memory fake only — each file said
+so in its own header. The 12.7% was the number that said "the real persistence
+layer is unverified", and it is why the adapters were **not** excluded from
+measurement: hiding them would have raised the aggregate by roughly 10 points
+and erased the most important thing the report could tell you.
+
+Closed by **KWM-063** on 2026-09-02 — see §2 for what it found.
 
 ---
 
@@ -76,9 +121,20 @@ slack for ordinary churn, not enough to absorb a deleted test file.
 
 | Scope | Statements | Branches | Functions | Lines |
 |---|---|---|---|---|
-| Global | 68 | 60 | 65 | 67 |
+| Global | 84 | 82 | 85 | 84 |
 | `src/modules/*/domain/**` | 95 | 95 | 95 | 95 |
-| `src/modules/*/application/**` | 83 | 80 | 95 | 83 |
+| `src/modules/*/application/**` | 86 | 85 | 95 | 86 |
+| `src/**/infrastructure/**/drizzle-*.ts` | 95 | 90 | 90 | 95 |
+
+The Drizzle floor is new in KWM-063 and is the one that matters most. Those
+files sat at 0–13% for the life of the project; a regression there means the
+contract runs against real Postgres stopped happening, which is precisely the
+state the issue existed to leave behind.
+
+A threshold whose glob matches nothing passes vacuously — the same
+false-confidence failure as the stale `lib/**` globs this document opens with.
+The new glob was verified by raising its floor to 100 and confirming CI fails
+with `Coverage for statements (97.45%) does not meet … threshold (100%)`.
 
 The global floor is coarse on purpose, and the per-layer floors exist because of
 a measured shortcoming rather than a hunch. Verified by deleting real test files
@@ -110,13 +166,19 @@ npm run test:coverage
 
 Prints a per-file table and writes `coverage/coverage-summary.json`
 (gitignored). Files with no test at all are included — that is Vitest 4's
-default once `include` is set, and it is load-bearing here: without it the
-untested Drizzle adapters would drop out of the denominator entirely.
+default once `include` is set, and it is load-bearing here: it is what kept the
+untested Drizzle adapters in the denominator until KWM-063 covered them, and
+what will keep the next untested file visible.
 
 Two cautions when interpreting a file-level number:
 
-- **High coverage on an in-memory adapter says nothing about its Drizzle
-  sibling.** The pair share a contract suite; only one of them runs it.
+- **A green contract run against PGlite is not a green run against Neon.**
+  PGlite is genuine Postgres, so constraints, enums, transactions and SQL
+  semantics are real — that is what found all three defects in §2. What it is
+  not is a deployment: no connection pooler, no cold starts, no network, and
+  it is a single connection, so lock contention and the concurrent-insert races
+  the adapters guard against cannot be reproduced. The files that reach those
+  branches say so in their own headers rather than leaving the gap implied.
 - **A covered line is not a tested behaviour.** The action files sat at ~75%
   statements *before* any authorization test existed, because use-case tests
   imported them incidentally. Coverage told us those lines executed; it could
