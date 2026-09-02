@@ -1,5 +1,5 @@
 import { eq, sql } from 'drizzle-orm';
-import { txdb, type RewardTx } from '@/utils/db/txClient';
+import type { Database, DatabaseTx } from '@/shared/infrastructure/persistence/database';
 import { PointTransactions, UserRewardBalance } from '@/utils/db/schema';
 import type { PointTransaction } from '../domain/point-transaction';
 import type { RewardLedgerUnitOfWork } from '../application/ports/reward-ledger-unit-of-work.port';
@@ -11,7 +11,7 @@ import type { TransactionManager } from '@/shared/application/ports/transaction-
 // see wrapExistingTx / DrizzleRewardTransactionManager below for the two
 // ways one gets opened.
 export class DrizzleRewardLedgerUnitOfWork implements RewardLedgerUnitOfWork {
-  constructor(private readonly tx: RewardTx) {}
+  constructor(private readonly tx: DatabaseTx) {}
 
   async getBalanceForUpdate(userId: number): Promise<number> {
     const [row] = await this.tx
@@ -55,7 +55,7 @@ export class DrizzleRewardLedgerUnitOfWork implements RewardLedgerUnitOfWork {
 // instead of opening a new one — for call sites (createReport) that need the
 // point mint to be atomic with other writes they're already doing in the
 // same transaction.
-export function wrapExistingTx(tx: RewardTx): TransactionManager<RewardLedgerUnitOfWork> {
+export function wrapExistingTx(tx: DatabaseTx): TransactionManager<RewardLedgerUnitOfWork> {
   return {
     run<T>(work: (uow: RewardLedgerUnitOfWork) => Promise<T>): Promise<T> {
       return work(new DrizzleRewardLedgerUnitOfWork(tx));
@@ -66,7 +66,9 @@ export function wrapExistingTx(tx: RewardTx): TransactionManager<RewardLedgerUni
 // Opens its own transaction — for call sites (redeemReward, saveReward) that
 // don't already have one open.
 export class DrizzleRewardTransactionManager implements TransactionManager<RewardLedgerUnitOfWork> {
+  constructor(private readonly db: Database) {}
+
   run<T>(work: (uow: RewardLedgerUnitOfWork) => Promise<T>): Promise<T> {
-    return txdb.transaction((tx) => work(new DrizzleRewardLedgerUnitOfWork(tx)));
+    return this.db.transaction((tx) => work(new DrizzleRewardLedgerUnitOfWork(tx)));
   }
 }
