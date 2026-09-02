@@ -1,5 +1,5 @@
 import { and, eq, isNull } from 'drizzle-orm';
-import { db } from '@/utils/db/dbConfig';
+import type { Database } from '@/shared/infrastructure/persistence/database';
 import { Sessions } from '@/utils/db/schema';
 import type {
   SessionRepository,
@@ -8,8 +8,10 @@ import type {
 } from '../application/ports/session-repository.port';
 
 export class DrizzleSessionRepository implements SessionRepository {
+  constructor(private readonly db: Database) {}
+
   async create(input: CreateSessionInput): Promise<void> {
-    await db
+    await this.db
       .insert(Sessions)
       .values({
         sessionId: input.sessionId,
@@ -20,7 +22,7 @@ export class DrizzleSessionRepository implements SessionRepository {
   }
 
   async findById(sessionId: string): Promise<SessionRecord | null> {
-    const [row] = await db
+    const [row] = await this.db
       .select({
         sessionId: Sessions.sessionId,
         userId: Sessions.userId,
@@ -37,7 +39,7 @@ export class DrizzleSessionRepository implements SessionRepository {
   async revoke(sessionId: string): Promise<void> {
     // Only unrevoked rows, so a repeated logout does not rewrite the original
     // revocation time and lose when the session actually ended.
-    await db
+    await this.db
       .update(Sessions)
       .set({ revokedAt: new Date() })
       .where(and(eq(Sessions.sessionId, sessionId), isNull(Sessions.revokedAt)))
@@ -45,7 +47,7 @@ export class DrizzleSessionRepository implements SessionRepository {
   }
 
   async revokeAllForUser(userId: number): Promise<number> {
-    const ended = await db
+    const ended = await this.db
       .update(Sessions)
       .set({ revokedAt: new Date() })
       .where(and(eq(Sessions.userId, userId), isNull(Sessions.revokedAt)))
