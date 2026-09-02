@@ -1,18 +1,22 @@
 import { describe, it, expect } from 'vitest';
 import type { Report } from '../domain/report';
 import type { ReportRepository } from '../application/ports/report-repository.port';
-import { InMemoryReportRepository } from './in-memory-report-repository.adapter';
 
 export interface ReportRepositoryContractHarness {
   readonly repository: ReportRepository;
   seedReport(report: Report): Promise<void>;
 }
 
-// Shared behavioral contract for any ReportRepository implementation. Run
-// here against the in-memory fake; re-run against DrizzleReportRepository
-// once a live/staging Postgres is available in CI (KWM-063) — intentionally
-// NOT wired up yet, matching the rewards/auth/notifications modules'
-// contract tests (no live DB in this environment).
+// Shared behavioral contract for any ReportRepository implementation. Two
+// files invoke it: in-memory-…adapter.test.ts with the fake, and
+// drizzle-…adapter.test.ts against a real Postgres (KWM-063). Both run these
+// same assertions, which is what stops the fake drifting from the
+// implementation it stands in for.
+//
+// KWM-063 also made this a `.test-support.ts` module. It used to be a
+// `.contract.test.ts` that both defined the contract AND ran it against the
+// fake at import time, so a second file importing the function would re-run
+// the whole in-memory suite inside itself.
 export function testReportRepositoryContract(
   name: string,
   createHarness: () => ReportRepositoryContractHarness
@@ -71,11 +75,3 @@ export function testReportRepositoryContract(
     });
   });
 }
-
-testReportRepositoryContract('InMemoryReportRepository', () => {
-  const repository = new InMemoryReportRepository();
-  return {
-    repository,
-    seedReport: async (report) => repository.seed(report),
-  };
-});
