@@ -72,6 +72,7 @@ const ACTIONS = [
   { name: 'updateTaskStatus', allowed: ['operator', 'supervisor', 'admin'], call: (m: Actions) => m.updateTaskStatus(1, 'collected') },
   { name: 'getPendingReports', allowed: ['supervisor', 'admin'], call: (m: Actions) => m.getPendingReports() },
   { name: 'updateReportStatus', allowed: ['supervisor', 'admin'], call: (m: Actions) => m.updateReportStatus(1, 'approved') },
+  { name: 'reviewReports', allowed: ['supervisor', 'admin'], call: (m: Actions) => m.reviewReports([1], 'approved') },
   { name: 'getRecentReports', allowed: ['operator', 'supervisor', 'admin'], call: (m: Actions) => m.getRecentReports() },
   { name: 'getWasteCollectionTasks', allowed: ['operator', 'supervisor', 'admin'], call: (m: Actions) => m.getWasteCollectionTasks() },
 ] as const;
