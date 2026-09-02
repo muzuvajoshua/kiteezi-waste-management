@@ -32,6 +32,39 @@ function report(overrides: Partial<Report> = {}): Report {
 }
 
 describe('MyReportsView', () => {
+  // KWM-032 — the reason a supervisor gave is shown to the reporter. Storing
+  // it and never rendering it would leave the rejection unexplained, which is
+  // the problem the column exists to solve.
+  describe("a reviewer's reason", () => {
+    it('explains a rejection', () => {
+      render(
+        <MyReportsView
+          result={ok([report({ status: 'rejected', reviewReason: 'Photo is unclear' })])}
+        />
+      );
+
+      expect(screen.getByText(/why it was rejected/i)).toBeInTheDocument();
+      expect(screen.getByText(/photo is unclear/i)).toBeInTheDocument();
+    });
+
+    it('shows an approval note without calling it a rejection', () => {
+      render(
+        <MyReportsView
+          result={ok([report({ status: 'approved', reviewReason: 'Thanks, clear photo' })])}
+        />
+      );
+
+      expect(screen.getByText(/reviewer note/i)).toBeInTheDocument();
+      expect(screen.queryByText(/why it was rejected/i)).not.toBeInTheDocument();
+    });
+
+    it('shows nothing when no reason was given', () => {
+      render(<MyReportsView result={ok([report({ status: 'approved', reviewReason: null })])} />);
+
+      expect(screen.queryByText(/reviewer note/i)).not.toBeInTheDocument();
+      expect(screen.queryByText(/why it was rejected/i)).not.toBeInTheDocument();
+    });
+  });
   describe('with reports', () => {
     it('lists each report with its location, type, amount and status', () => {
       render(
