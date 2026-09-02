@@ -27,6 +27,7 @@ class InMemoryReportWriteUnitOfWork implements ReportWriteUnitOfWork {
       status: 'pending',
       createdAt: new Date(),
       collectorId: null,
+      reviewReason: null,
     };
     this.store.reports.set(report.id, report);
     return report;
