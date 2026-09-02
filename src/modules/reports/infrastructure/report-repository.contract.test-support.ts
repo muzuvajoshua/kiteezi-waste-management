@@ -33,6 +33,7 @@ export function testReportRepositoryContract(
       status: 'pending',
       createdAt: new Date('2026-01-01'),
       collectorId: null,
+      reviewReason: null,
     };
 
     it('findByUserId returns only that user\'s reports', async () => {
