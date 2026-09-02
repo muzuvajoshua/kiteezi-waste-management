@@ -1,3 +1,4 @@
+import { db } from '@/utils/db/dbConfig';
 import { DrizzleRateLimiter } from '@/shared/infrastructure/rate-limit/drizzle-rate-limiter.adapter';
 import { ResendEmailSender } from '@/shared/infrastructure/email/resend-email-sender.adapter';
 import { ConsoleEmailSender } from '@/shared/infrastructure/email/console-email-sender.adapter';
@@ -12,7 +13,7 @@ import type { AuditLogger } from '@/shared/application/ports/audit-logger.port';
 // The in-memory one is accurate only in a single process, and quietly
 // swapping implementations by environment would mean the limits are never
 // exercised until production — where getting them wrong locks people out.
-export const rateLimiter: RateLimiter = new DrizzleRateLimiter();
+export const rateLimiter: RateLimiter = new DrizzleRateLimiter(db);
 
 // Transport is chosen by an EXPLICIT variable, never inferred from NODE_ENV.
 // A transport that silently swallows mail based on an ambient value is one
@@ -26,4 +27,4 @@ export const emailSender: EmailSender =
 // nothing ever called them, so the log was guaranteed empty — anyone reading
 // the schema would wrongly conclude an audit trail existed. This is what
 // makes it real.
-export const auditLogger: AuditLogger = new DrizzleAuditLogger();
+export const auditLogger: AuditLogger = new DrizzleAuditLogger(db);

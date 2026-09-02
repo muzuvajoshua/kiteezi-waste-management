@@ -1,17 +1,21 @@
 import { describe, it, expect } from 'vitest';
 import type { UserRepository } from '../application/ports/user-repository.port';
-import { InMemoryUserRepository } from './in-memory-user-repository.adapter';
 
 export interface UserRepositoryContractHarness {
   readonly repository: UserRepository;
   seedUser(id: number, email: string, name: string): Promise<void>;
 }
 
-// Shared behavioral contract for any UserRepository implementation. Run
-// here against InMemoryUserRepository; re-run against DrizzleUserRepository
-// once a live/staging Postgres is available in CI (KWM-063) — intentionally
-// NOT wired up yet, matching rewards/infrastructure/reward-repository.contract.test.ts's
-// precedent (no live DB in this environment).
+// Shared behavioral contract for any UserRepository implementation. Two
+// files invoke it: in-memory-…adapter.test.ts with the fake, and
+// drizzle-…adapter.test.ts against a real Postgres (KWM-063). Both run these
+// same assertions, which is what stops the fake drifting from the
+// implementation it stands in for.
+//
+// KWM-063 also made this a `.test-support.ts` module. It used to be a
+// `.contract.test.ts` that both defined the contract AND ran it against the
+// fake at import time, so a second file importing the function would re-run
+// the whole in-memory suite inside itself.
 export function testUserRepositoryContract(
   name: string,
   createHarness: () => UserRepositoryContractHarness
@@ -48,11 +52,3 @@ export function testUserRepositoryContract(
     });
   });
 }
-
-testUserRepositoryContract('InMemoryUserRepository', () => {
-  const repository = new InMemoryUserRepository();
-  return {
-    repository,
-    seedUser: async (id, email, name) => repository.seed({ id, email, name }),
-  };
-});

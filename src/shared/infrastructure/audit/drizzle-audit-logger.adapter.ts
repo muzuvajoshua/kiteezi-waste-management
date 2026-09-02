@@ -1,4 +1,4 @@
-import { db } from '@/utils/db/dbConfig';
+import type { Database } from '@/shared/infrastructure/persistence/database';
 import { AuditLog } from '@/utils/db/schema';
 import type { AuditLogger, AuditEntry } from '@/shared/application/ports/audit-logger.port';
 
@@ -13,9 +13,11 @@ import type { AuditLogger, AuditEntry } from '@/shared/application/ports/audit-l
 // neon(process.env.DATABASE_URL!) throws at import time, which is precisely
 // what made actions untestable before the composition seam existed.
 export class DrizzleAuditLogger implements AuditLogger {
+  constructor(private readonly db: Database) {}
+
   async record(entry: AuditEntry): Promise<void> {
     try {
-      await db
+      await this.db
         .insert(AuditLog)
         .values({
           actorUserId: entry.actorUserId,

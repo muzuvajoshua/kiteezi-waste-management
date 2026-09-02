@@ -1,16 +1,20 @@
 import { describe, it, expect } from 'vitest';
 import type { NotificationRepository } from '../application/ports/notification-repository.port';
-import { InMemoryNotificationRepository } from './in-memory-notification-repository.adapter';
 
 export interface NotificationRepositoryContractHarness {
   readonly repository: NotificationRepository;
 }
 
-// Shared behavioral contract for any NotificationRepository implementation.
-// Run here against the in-memory fake; re-run against
-// DrizzleNotificationRepository once a live/staging Postgres is available
-// in CI (KWM-063) — intentionally NOT wired up yet, matching the rewards
-// and auth modules' contract tests (no live DB in this environment).
+// Shared behavioral contract for any NotificationRepository implementation. Two
+// files invoke it: in-memory-…adapter.test.ts with the fake, and
+// drizzle-…adapter.test.ts against a real Postgres (KWM-063). Both run these
+// same assertions, which is what stops the fake drifting from the
+// implementation it stands in for.
+//
+// KWM-063 also made this a `.test-support.ts` module. It used to be a
+// `.contract.test.ts` that both defined the contract AND ran it against the
+// fake at import time, so a second file importing the function would re-run
+// the whole in-memory suite inside itself.
 export function testNotificationRepositoryContract(
   name: string,
   createHarness: () => NotificationRepositoryContractHarness
@@ -47,7 +51,3 @@ export function testNotificationRepositoryContract(
     });
   });
 }
-
-testNotificationRepositoryContract('InMemoryNotificationRepository', () => ({
-  repository: new InMemoryNotificationRepository(),
-}));
