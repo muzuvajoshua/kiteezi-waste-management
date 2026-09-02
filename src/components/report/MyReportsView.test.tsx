@@ -26,6 +26,7 @@ function report(overrides: Partial<Report> = {}): Report {
     status: 'pending' as ReportStatus,
     createdAt: new Date('2026-08-20T09:30:00Z'),
     collectorId: null,
+    reviewReason: null,
     ...overrides,
   };
 }
