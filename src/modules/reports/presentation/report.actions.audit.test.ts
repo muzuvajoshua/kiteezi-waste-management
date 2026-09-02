@@ -139,6 +139,66 @@ describe('report action auditing', () => {
     });
   });
 
+  // KWM-032 — bulk review writes one entry per report that changed, not one
+  // for the batch. "What happened to report 9, and who decided it" is the
+  // question the trail exists to answer.
+  describe('reviewReports', () => {
+    it('records an entry per report reviewed', async () => {
+      await auth.signInAs({ userId: 42, roles: ['supervisor'] });
+      await seedReport(9);
+      await seedReport(10);
+
+      await (await import('./report.actions')).reviewReports([9, 10], 'approved');
+
+      const entries = (await auditLog()).entries.filter((e) => e.action === 'report.reviewed');
+      expect(entries.map((e) => e.target)).toEqual(['report:9', 'report:10']);
+    });
+
+    it('records the rejection reason, which is what the citizen is shown', async () => {
+      await auth.signInAs({ userId: 42, roles: ['supervisor'] });
+      await seedReport(9);
+
+      await (await import('./report.actions')).reviewReports([9], 'rejected', 'Photo is unclear');
+
+      expect((await auditLog()).find('report.reviewed')).toMatchObject({
+        actorUserId: 42,
+        target: 'report:9',
+        after: { status: 'rejected', reviewReason: 'Photo is unclear' },
+      });
+    });
+
+    it('records nothing for reports another supervisor had already decided', async () => {
+      // Nothing happened to them here, so an entry would misreport the batch.
+      await auth.signInAs({ userId: 42, roles: ['supervisor'] });
+      await seedReport(9);
+      await seedReport(10, 'approved');
+
+      await (await import('./report.actions')).reviewReports([9, 10], 'rejected', 'Duplicate');
+
+      const entries = (await auditLog()).entries.filter((e) => e.action === 'report.reviewed');
+      expect(entries.map((e) => e.target)).toEqual(['report:9']);
+    });
+
+    it('records nothing when a citizen is refused', async () => {
+      await auth.signInAs({ userId: 3, roles: ['citizen'] });
+      await seedReport(9);
+
+      await (await import('./report.actions')).reviewReports([9], 'approved');
+
+      expect((await auditLog()).entries).toHaveLength(0);
+    });
+
+    it('records nothing when the request is rejected for having no reason', async () => {
+      // Validation fails before any write, so there is nothing to record.
+      await auth.signInAs({ userId: 42, roles: ['supervisor'] });
+      await seedReport(9);
+
+      await (await import('./report.actions')).reviewReports([9], 'rejected');
+
+      expect((await auditLog()).entries).toHaveLength(0);
+    });
+  });
+
   describe('a failing audit write', () => {
     it('does not fail the action it was recording', async () => {
       // Fail-open, deliberately: a status change should not be refused
