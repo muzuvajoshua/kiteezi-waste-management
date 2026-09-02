@@ -1,13 +1,15 @@
 import { eq } from 'drizzle-orm';
-import { db } from '@/utils/db/dbConfig';
+import type { Database } from '@/shared/infrastructure/persistence/database';
 import { Roles, UserRoles } from '@/utils/db/schema';
 import type { RoleRepository } from '../application/ports/role-repository.port';
 import type { Role } from '../domain/role';
 
 // Relocated from utils/db/roles.ts, unchanged.
 export class DrizzleRoleRepository implements RoleRepository {
+  constructor(private readonly db: Database) {}
+
   async getUserRoles(userId: number): Promise<Role[]> {
-    const rows = await db
+    const rows = await this.db
       .select({ name: Roles.name })
       .from(UserRoles)
       .innerJoin(Roles, eq(UserRoles.roleId, Roles.id))
@@ -17,11 +19,11 @@ export class DrizzleRoleRepository implements RoleRepository {
   }
 
   async assignRole(userId: number, roleName: Role, grantedBy?: number): Promise<void> {
-    const [role] = await db.select({ id: Roles.id }).from(Roles).where(eq(Roles.name, roleName)).execute();
+    const [role] = await this.db.select({ id: Roles.id }).from(Roles).where(eq(Roles.name, roleName)).execute();
     if (!role) {
       throw new Error(`Unknown role: ${roleName}`);
     }
-    await db
+    await this.db
       .insert(UserRoles)
       .values({ userId, roleId: role.id, grantedBy: grantedBy ?? null })
       .onConflictDoNothing()
