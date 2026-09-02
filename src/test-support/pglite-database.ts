@@ -81,6 +81,30 @@ export async function createTestDatabase(): Promise<TestDatabase> {
   };
 }
 
+/**
+ * Inserts users 1..count.
+ *
+ * Nearly every other table carries a foreign key to `users`, which the
+ * in-memory fakes do not model — so a contract written against a fake freely
+ * references user ids that were never created. Seeding a block of them up
+ * front keeps those runs about the adapter rather than about fixtures. The
+ * default covers the largest id any current contract uses (42).
+ */
+export async function seedUsers(db: Database, count = 50): Promise<void> {
+  await db.insert(schema.Users).values(
+    Array.from({ length: count }, (_, i) => ({
+      id: i + 1,
+      email: `user${i + 1}@example.com`,
+      name: `User ${i + 1}`,
+    }))
+  );
+  // An explicit id does not advance the serial sequence, so a later insert
+  // that lets the database assign one would collide on id 1.
+  await db.execute(
+    sql`SELECT setval(pg_get_serial_sequence('users', 'id'), (SELECT MAX(id) FROM users))`
+  );
+}
+
 async function truncateAll(db: Database): Promise<void> {
   // One statement, so it is atomic and the FK graph is irrelevant. RESTART
   // IDENTITY matters: several contract assertions compare generated ids, and
