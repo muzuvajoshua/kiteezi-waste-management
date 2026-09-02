@@ -48,10 +48,16 @@ const TABLES = [
   'password_reset_tokens',
   'user_identities',
   'user_roles',
-  'roles',
   'rate_limit_counters',
   'users',
 ] as const;
+
+// Populated by a migration, not by a test, so reset() must leave it alone.
+// `roles` is the RBAC catalog seeded by 0004; truncating it made every
+// assignRole throw "Unknown role", because the name it looks up was gone.
+// Anything added here is preserved between tests and must be genuinely
+// immutable reference data.
+const SEEDED_CATALOGS = ['roles'] as const;
 
 export interface TestDatabase {
   readonly db: Database;
@@ -125,15 +131,16 @@ async function assertEveryTableIsTruncatable(client: PGlite): Promise<void> {
   const result = await client.query<{ tablename: string }>(
     `SELECT tablename FROM pg_tables WHERE schemaname = 'public'`
   );
-  const live = result.rows
+  const known = new Set<string>([...TABLES, ...SEEDED_CATALOGS]);
+  const missing = result.rows
     .map((r) => r.tablename)
-    .filter((t) => t !== '__drizzle_migrations');
-  const missing = live.filter((t) => !TABLES.includes(t as (typeof TABLES)[number]));
+    .filter((t) => t !== '__drizzle_migrations' && !known.has(t));
 
   if (missing.length > 0) {
     throw new Error(
-      `pglite-database.ts TABLES is missing: ${missing.join(', ')}. ` +
-        'Add them so reset() actually empties the database between tests.'
+      `pglite-database.ts does not account for: ${missing.join(', ')}. ` +
+        'Add each to TABLES so reset() empties it between tests, or to ' +
+        'SEEDED_CATALOGS if a migration populates it and it must survive.'
     );
   }
 }
