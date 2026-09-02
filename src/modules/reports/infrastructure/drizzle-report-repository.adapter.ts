@@ -71,5 +71,6 @@ function mapRow(row: typeof Reports.$inferSelect): Report {
     status: row.status,
     createdAt: row.created_at,
     collectorId: row.collector_id,
+    reviewReason: row.review_reason,
   };
 }
