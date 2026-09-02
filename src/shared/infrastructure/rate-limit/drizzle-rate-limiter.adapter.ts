@@ -81,6 +81,24 @@ export class DrizzleRateLimiter implements RateLimiter {
    * exists and is named, rather than discovered later as unbounded growth.
    */
   async purgeExpired(): Promise<void> {
-    await this.db.execute(sql`DELETE FROM rate_limit_counters WHERE expires_at <= now()`);
+    // `now() AT TIME ZONE 'utc'`, not `now()`.
+    //
+    // window_start and expires_at are `timestamp without time zone`, and the
+    // driver writes UTC wall time into them. `now()` is a timestamptz, so
+    // comparing it against one of those columns silently converts it to the
+    // SESSION's timezone. On any connection whose TimeZone is not UTC the
+    // comparison is skewed by the offset — at UTC+9 every counter looks
+    // expired the moment it is written, so this statement deletes live
+    // windows and rate limiting stops bounding anything.
+    //
+    // Neon's sessions default to UTC, which is why this never showed in
+    // production. It surfaced the first time the adapter ran against a
+    // database inheriting the machine's timezone (KWM-063). Making the
+    // comparison explicit removes the dependency on session configuration
+    // rather than relying on the default holding — which matters more once
+    // KWM-058 actually schedules this.
+    await this.db.execute(
+      sql`DELETE FROM rate_limit_counters WHERE expires_at <= (now() AT TIME ZONE 'utc')`
+    );
   }
 }
