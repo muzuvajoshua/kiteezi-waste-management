@@ -67,6 +67,7 @@ describe('DrizzleReportRepository against real Postgres', () => {
       imageUrl: 'https://example.com/a.jpg',
       created_at: new Date('2026-03-04T05:06:07Z'),
       collector_id: 3,
+      review_reason: 'Photo is unclear',
     });
 
     const [report] = await new DrizzleReportRepository(database.db).findByUserId(1);
@@ -82,6 +83,7 @@ describe('DrizzleReportRepository against real Postgres', () => {
       status: 'pending',
       createdAt: new Date('2026-03-04T05:06:07Z'),
       collectorId: 3,
+      reviewReason: 'Photo is unclear',
     });
   });
 
