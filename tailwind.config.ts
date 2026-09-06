@@ -93,6 +93,27 @@ const config: Config = {
   			lg: 'var(--radius)',
   			md: 'calc(var(--radius) - 2px)',
   			sm: 'calc(var(--radius) - 4px)'
+  		},
+  		// The hero's recycling loop. Declared here rather than in a <style>
+  		// tag so the `motion-reduce:animate-none` variant can switch them off,
+  		// which an inline keyframe cannot.
+  		//
+  		// `dash-travel` shifts the dash pattern along each arrow so the arrows
+  		// appear to chase each other round the triangle. The distance must
+  		// equal one dash period (22 + 13) times a whole number, or the pattern
+  		// visibly jumps when the animation loops — 70 is two periods.
+  		keyframes: {
+  			'dash-travel': {
+  				to: { strokeDashoffset: '-70' },
+  			},
+  			'paper-bob': {
+  				'0%, 100%': { transform: 'translateY(0)' },
+  				'50%': { transform: 'translateY(-9px)' },
+  			},
+  		},
+  		animation: {
+  			'dash-travel': 'dash-travel 2.6s linear infinite',
+  			'paper-bob': 'paper-bob 9s ease-in-out infinite',
   		}
   	}
   },
