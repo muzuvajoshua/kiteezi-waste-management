@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { actionErrorMessage } from "@/lib/action-error";
 import type { Result } from "@/shared/application/result";
 import type { AppError } from "@/shared/application/app-error";
+import { REPORT_STATUSES } from "@/modules/reports/domain/report";
 import type { Report, ReportStatus } from "@/modules/reports/domain/report";
 
 // KWM-027 — the citizen's own report history.
@@ -21,15 +22,6 @@ import type { Report, ReportStatus } from "@/modules/reports/domain/report";
 // the port and the repository — out of scope for this slice. The status filter
 // below is client-side, which is correct only while the whole list is fetched;
 // it must move server-side when pagination lands.
-
-const STATUSES: readonly ReportStatus[] = [
-  "pending",
-  "approved",
-  "in_progress",
-  "collected",
-  "verified",
-  "rejected",
-];
 
 const STATUS_STYLES: Record<ReportStatus, string> = {
   pending: "bg-amber-100 text-amber-800",
@@ -122,7 +114,7 @@ export function MyReportsView({ result }: { result: Result<Report[], AppError> }
             className="rounded-lg border border-gray-300 px-2 py-1 text-sm text-gray-900"
           >
             <option value="all">All</option>
-            {STATUSES.map((status) => (
+            {REPORT_STATUSES.map((status) => (
               <option key={status} value={status}>
                 {formatStatus(status)}
               </option>

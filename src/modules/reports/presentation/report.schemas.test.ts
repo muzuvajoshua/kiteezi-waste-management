@@ -1,4 +1,6 @@
 import { describe, it, expect } from 'vitest';
+import { reportStatusEnum, wasteTypeEnum } from '@/utils/db/schema';
+import { REPORT_STATUSES, WASTE_TYPES } from '@/modules/reports/domain/report';
 import {
   createReportSchema,
   updateReportStatusSchema,
@@ -55,5 +57,23 @@ describe('pagination limit schemas', () => {
     expect(recentReportsSchema.safeParse({ limit: -1 }).success).toBe(false);
     expect(recentReportsSchema.safeParse({ limit: 101 }).success).toBe(false);
     expect(recentReportsSchema.safeParse({ limit: 2.5 }).success).toBe(false);
+  });
+});
+
+// The Domain layer must not import Drizzle, so REPORT_STATUSES and WASTE_TYPES
+// are declared independently of the pgEnums they mirror. That independence is
+// the point — and it is also how the two drift. Presentation is the one layer
+// allowed to see both, so the comparison lives here.
+//
+// Sets, not arrays: the domain lists are ordered by lifecycle for rendering,
+// while the enums are ordered by however they were declared. Order is not the
+// thing that has to match.
+describe('domain constants against the database enums', () => {
+  it('REPORT_STATUSES covers exactly the report_status enum', () => {
+    expect(new Set(REPORT_STATUSES)).toEqual(new Set(reportStatusEnum.enumValues));
+  });
+
+  it('WASTE_TYPES covers exactly the waste_type enum', () => {
+    expect(new Set(WASTE_TYPES)).toEqual(new Set(wasteTypeEnum.enumValues));
   });
 });

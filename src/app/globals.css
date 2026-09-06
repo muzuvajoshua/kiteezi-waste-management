@@ -2,8 +2,17 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+  Inter, loaded by app/layout.tsx as the `--font-sans` variable.
+
+  This declaration used to read `font-family: Arial, Helvetica, sans-serif`.
+  An element selector outranks the class Next.js generates for a font, so
+  Inter was downloaded on every page load and then never used — the whole app
+  rendered in Arial. The fallback chain is kept for the moment before the
+  webfont resolves.
+*/
 body {
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
 }
 
 @layer utilities {
