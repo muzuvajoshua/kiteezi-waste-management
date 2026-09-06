@@ -2,7 +2,6 @@
 import '@/test-support/component-testing';
 import { describe, it, expect, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { REPORT_STATUSES } from '@/modules/reports/domain/report';
 import { LandingPage } from './LandingPage';
 
 // The landing page is static markup, so most of it is not worth asserting.
@@ -50,9 +49,8 @@ describe('LandingPage', () => {
   });
 
   describe('the workflow', () => {
-    // Scoped to the section rather than the whole document: the hero carries
-    // its own ordered list of report states, so a bare getAllByRole
-    // ('listitem') would mix the two.
+    // Scoped to the section rather than the whole document, so a list added
+    // elsewhere on the page cannot silently join the assertion.
     const steps = () => {
       const section = document.getElementById('how-it-works');
       return [...(section?.querySelectorAll('li') ?? [])];
@@ -73,33 +71,6 @@ describe('LandingPage', () => {
         '2',
         '3',
         '4',
-      ]);
-    });
-  });
-
-  describe('the report lifecycle in the hero', () => {
-    // Every value of ReportStatus, imported from the domain rather than
-    // retyped, so adding a status to the enum and forgetting this panel is a
-    // failure here instead of a silently incomplete diagram.
-    it.each(REPORT_STATUSES)('shows the %s state', (status) => {
-      expect(screen.getByText(status.replace(/_/g, ' '))).toBeInTheDocument();
-    });
-
-    it('lists them in lifecycle order', () => {
-      const hero = document.querySelector('ol');
-      const labels = [...(hero?.querySelectorAll('span') ?? [])]
-        .map((el) => el.textContent)
-        .filter((text): text is string =>
-          (REPORT_STATUSES as readonly string[]).includes((text ?? '').replace(/ /g, '_'))
-        );
-
-      expect(labels).toEqual([
-        'pending',
-        'approved',
-        'in progress',
-        'collected',
-        'verified',
-        'rejected',
       ]);
     });
   });
