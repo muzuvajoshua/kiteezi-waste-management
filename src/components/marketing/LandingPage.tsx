@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { RecycleBall } from "@/components/marketing/RecycleBall";
 import {
   ArrowRight,
   ClipboardCheck,
@@ -47,44 +48,6 @@ const STEPS = [
     icon: Coins,
     title: "The reporter earns points",
     body: "Reports that check out earn points, which accumulate on a balance and can be redeemed against the rewards catalogue.",
-  },
-] as const;
-
-// The six values of the report_status enum, in the order a report moves
-// through them, with the badge styling MyReportsView already uses — so the
-// colours a visitor learns here are the colours they will see on their own
-// reports. Kept in step with domain/report.ts's ReportStatus by the test that
-// asserts all six appear.
-const LIFECYCLE = [
-  {
-    status: "pending",
-    meaning: "Filed, waiting on a supervisor.",
-    className: "bg-amber-100 text-amber-800",
-  },
-  {
-    status: "approved",
-    meaning: "Accepted, queued for a crew.",
-    className: "bg-blue-100 text-blue-800",
-  },
-  {
-    status: "in_progress",
-    meaning: "A crew is on it.",
-    className: "bg-indigo-100 text-indigo-800",
-  },
-  {
-    status: "collected",
-    meaning: "Cleared from the site.",
-    className: "bg-teal-100 text-teal-800",
-  },
-  {
-    status: "verified",
-    meaning: "Confirmed, and points awarded.",
-    className: "bg-green-100 text-green-800",
-  },
-  {
-    status: "rejected",
-    meaning: "Turned down, with a reason you can read.",
-    className: "bg-red-100 text-red-800",
   },
 ] as const;
 
@@ -177,36 +140,25 @@ export function LandingPage() {
           </div>
 
           {/*
-            The right column is the report lifecycle — the six real values of
-            the report_status enum, in order, with the badge colours the app
-            itself uses on /my-reports.
+            The right column is the brand's one memorable image: a ball folded
+            from waste paper, circled by the arrows of the recycling mark. The
+            facets and the loop are the same triangle at two scales, which is
+            the whole idea.
 
-            Deliberately NOT a mocked-up report card with a location and a
-            photo, which is what the reference theme does with stock imagery. A
-            fabricated example rendered in the app's own styling is
-            indistinguishable from real data, and someone would eventually cite
-            it. This shows the actual states a report moves through, which is
-            information rather than decoration.
+            It replaced a list of the six report_status values. That list was
+            honest and mildly useful, but a hero's job is to say what this is
+            in one glance, and a legend of status badges is reference material
+            — it belongs where someone is reading their own reports, which is
+            where it already lives (/my-reports has the same badges).
+
+            Deliberately still NOT a mocked-up report card with a location and
+            a photo, which is what the reference theme does with stock imagery.
+            A fabricated example rendered in the app's own styling is
+            indistinguishable from real data, and someone would eventually
+            cite it. An abstract mark cannot be mistaken for a record.
           */}
-          <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-            <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-500">
-              Where a report can be
-            </h2>
-            <ol className="mt-5 space-y-3">
-              {LIFECYCLE.map((stage) => (
-                <li key={stage.status} className="flex items-baseline gap-3">
-                  <span
-                    className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium capitalize ${stage.className}`}
-                  >
-                    {stage.status.replace(/_/g, " ")}
-                  </span>
-                  <span className="text-sm text-gray-600">{stage.meaning}</span>
-                </li>
-              ))}
-            </ol>
-            <p className="mt-5 border-t border-gray-100 pt-4 text-xs text-gray-500">
-              Every report keeps its current state, visible to the person who filed it.
-            </p>
+          <div className="mx-auto w-full max-w-sm text-brand-700 lg:max-w-none">
+            <RecycleBall className="h-auto w-full" />
           </div>
         </div>
       </section>
