@@ -14,6 +14,7 @@ function report(id: number, userId: number) {
     status: 'pending' as const,
     createdAt: new Date(),
     collectorId: null,
+    reviewReason: null,
   };
 }
 

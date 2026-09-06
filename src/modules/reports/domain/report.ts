@@ -16,6 +16,10 @@ export interface Report {
   readonly status: ReportStatus;
   readonly createdAt: Date;
   readonly collectorId: number | null;
+  // KWM-032 — why a supervisor approved or rejected this. Null until
+  // reviewed, and null for most approvals: only a rejection is required to
+  // carry one (domain/review.ts). Shown to the reporter on /my-reports.
+  readonly reviewReason: string | null;
 }
 
 /**

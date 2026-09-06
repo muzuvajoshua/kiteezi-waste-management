@@ -3,6 +3,7 @@ import type {
   ReportRepository,
   CollectionTaskRow,
   UpdateReportStatusOptions,
+  ReviewReportsInput,
 } from '../application/ports/report-repository.port';
 
 export class InMemoryReportRepository implements ReportRepository {
@@ -54,5 +55,29 @@ export class InMemoryReportRepository implements ReportRepository {
     };
     this.reports.set(reportId, updated);
     return updated;
+  }
+
+  async reviewMany(input: ReviewReportsInput): Promise<Report[]> {
+    const reviewed: Report[] = [];
+
+    // Ordered by the ids as given rather than by Map insertion order, so the
+    // returned batch is deterministic for a caller reporting on it.
+    for (const reportId of input.reportIds) {
+      const report = this.reports.get(reportId);
+      // Only pending reports — mirrors the adapter's WHERE clause, so a
+      // second supervisor's overlapping batch cannot overturn the first's
+      // decision here either.
+      if (!report || report.status !== 'pending') continue;
+
+      const updated: Report = {
+        ...report,
+        status: input.decision,
+        reviewReason: input.reviewReason,
+      };
+      this.reports.set(reportId, updated);
+      reviewed.push(updated);
+    }
+
+    return reviewed;
   }
 }

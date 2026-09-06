@@ -32,6 +32,7 @@ const savedReport: Report = {
   status: 'pending',
   createdAt: new Date('2026-08-26T10:00:00Z'),
   collectorId: null,
+  reviewReason: null,
 };
 
 beforeEach(() => {

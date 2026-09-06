@@ -1,3 +1,5 @@
+import { db } from '@/utils/db/dbConfig';
+import { txdb } from '@/utils/db/txClient';
 import { DrizzleRewardRepository } from '../infrastructure/drizzle-reward-repository.adapter';
 import { DrizzleRewardCatalogRepository } from '../infrastructure/drizzle-reward-catalog-repository.adapter';
 import { DrizzleRewardTransactionManager } from '../infrastructure/drizzle-reward-ledger-unit-of-work.adapter';
@@ -8,6 +10,6 @@ import { DrizzleRewardTransactionManager } from '../infrastructure/drizzle-rewar
 // the serverless Server Action runtime). reward.actions.ts is the only
 // caller — nothing outside Presentation reaches into Infrastructure
 // directly.
-export const rewardRepository = new DrizzleRewardRepository();
-export const rewardCatalogRepository = new DrizzleRewardCatalogRepository();
-export const rewardTransactionManager = new DrizzleRewardTransactionManager();
+export const rewardRepository = new DrizzleRewardRepository(db);
+export const rewardCatalogRepository = new DrizzleRewardCatalogRepository(db);
+export const rewardTransactionManager = new DrizzleRewardTransactionManager(txdb);

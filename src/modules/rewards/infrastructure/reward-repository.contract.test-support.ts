@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { RewardRepository } from '../application/ports/reward-repository.port';
 import type { PointKind } from '../domain/point-transaction';
-import { InMemoryRewardRepository } from './in-memory-reward-repository.adapter';
 
 export interface RewardRepositoryContractHarness {
   readonly repository: RewardRepository;
@@ -12,12 +11,16 @@ export interface RewardRepositoryContractHarness {
   ): Promise<void>;
 }
 
-// Shared behavioral contract for any RewardRepository implementation —
-// guarantees the in-memory fake never drifts from real behavior. Run here
-// against InMemoryRewardRepository; re-run against DrizzleRewardRepository
-// once a live/staging Postgres is available in CI (KWM-063). That second run
-// is intentionally NOT wired up yet — this repo has no live DB in this
-// environment — rather than faked or skipped silently.
+// Shared behavioral contract for any RewardRepository implementation. Two
+// files invoke it: in-memory-…adapter.test.ts with the fake, and
+// drizzle-…adapter.test.ts against a real Postgres (KWM-063). Both run these
+// same assertions, which is what stops the fake drifting from the
+// implementation it stands in for.
+//
+// KWM-063 also made this a `.test-support.ts` module. It used to be a
+// `.contract.test.ts` that both defined the contract AND ran it against the
+// fake at import time, so a second file importing the function would re-run
+// the whole in-memory suite inside itself.
 export function testRewardRepositoryContract(
   name: string,
   createHarness: () => RewardRepositoryContractHarness
@@ -63,13 +66,3 @@ export function testRewardRepositoryContract(
     });
   });
 }
-
-testRewardRepositoryContract('InMemoryRewardRepository', () => {
-  const repository = new InMemoryRewardRepository();
-  return {
-    repository,
-    seedBalance: async (userId, points, userName = null) => repository.seedBalance(userId, points, userName),
-    seedTransaction: async (userId, record) =>
-      repository.seedTransaction(userId, { ...record, relatedReportId: record.relatedReportId ?? null }),
-  };
-});

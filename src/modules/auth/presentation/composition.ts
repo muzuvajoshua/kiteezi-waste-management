@@ -1,3 +1,4 @@
+import { db } from '@/utils/db/dbConfig';
 import { SESSION_MAX_AGE_SECONDS } from '../domain/session';
 import { DrizzleUserRepository } from '../infrastructure/drizzle-user-repository.adapter';
 import { DrizzleRoleRepository } from '../infrastructure/drizzle-role-repository.adapter';
@@ -19,15 +20,15 @@ import { DrizzlePasswordResetTokenRepository } from '../infrastructure/drizzle-p
 // use-case), so keeping the literal here would have meant threading it down
 // from the composition root or duplicating it.
 
-export const userRepository = new DrizzleUserRepository();
-export const roleRepository = new DrizzleRoleRepository();
+export const userRepository = new DrizzleUserRepository(db);
+export const roleRepository = new DrizzleRoleRepository(db);
 export const sessionStore = new CookieSessionStore(SESSION_MAX_AGE_SECONDS);
 export const sessionTokenService = new JoseSessionTokenService(SESSION_MAX_AGE_SECONDS);
 export const identityProvider = new GoogleIdentityProvider();
-export const identityRepository = new DrizzleIdentityRepository();
-export const sessionRepository = new DrizzleSessionRepository();
+export const identityRepository = new DrizzleIdentityRepository(db);
+export const sessionRepository = new DrizzleSessionRepository(db);
 // Default scrypt parameters, chosen in the adapter. Constructed here like
 // every other adapter so the cost is set in one place if it is ever raised.
 export const passwordHasher = new ScryptPasswordHasher();
 export const resetTokenService = new Sha256ResetTokenService();
-export const passwordResetTokenRepository = new DrizzlePasswordResetTokenRepository();
+export const passwordResetTokenRepository = new DrizzlePasswordResetTokenRepository(db);

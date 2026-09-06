@@ -16,6 +16,7 @@ describe('updateReportStatus', () => {
       status: 'pending',
       createdAt: new Date(),
       collectorId: null,
+      reviewReason: null,
     });
 
     const result = await updateReportStatus(repository, 1, 'approved');

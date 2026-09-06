@@ -94,7 +94,19 @@ export async function buildSharedComposition() {
   const { InMemoryRateLimiter } = await import(
     '@/shared/infrastructure/rate-limit/in-memory-rate-limiter.adapter'
   );
-  return { rateLimiter: new InMemoryRateLimiter() };
+  const { InMemoryAuditLogger } = await import(
+    '@/shared/infrastructure/audit/in-memory-audit-logger.adapter'
+  );
+  const { ConsoleEmailSender } = await import(
+    '@/shared/infrastructure/email/console-email-sender.adapter'
+  );
+  return {
+    rateLimiter: new InMemoryRateLimiter(),
+    auditLogger: new InMemoryAuditLogger(),
+    // Never sends; present so an action importing the shared root does not
+    // construct the Resend adapter and read its configuration.
+    emailSender: new ConsoleEmailSender(),
+  };
 }
 
 export interface SignInOptions {
@@ -123,6 +135,7 @@ export interface AuthHarness {
 
 interface MockedShared {
   rateLimiter: { clear(): void };
+  auditLogger: { clear(): void };
 }
 
 interface MockedComposition {
@@ -184,6 +197,7 @@ export function authHarness(): AuthHarness {
       // through and fail cases for the wrong reason.
       const shared = (await import('@/shared/presentation/composition')) as unknown as MockedShared;
       shared.rateLimiter.clear();
+      shared.auditLogger.clear();
       (await composition()).sessionRepository.clear();
     },
   };

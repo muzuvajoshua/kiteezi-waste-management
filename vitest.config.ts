@@ -61,8 +61,9 @@ export default defineConfig({
       // Files with no test at all are reported too, not just files a test
       // happened to import — that is Vitest 4's default once `include` is set
       // (the old `all: true` flag no longer exists). It matters here: without
-      // it the untested Drizzle adapters would drop out of the denominator and
-      // inflate every number. Their 0% below is the honest signal for KWM-063.
+      // it a file nobody imports drops out of the denominator and inflates
+      // every number. That is what kept the Drizzle adapters' 0% visible
+      // until KWM-063 covered them.
       reporter: ['text', 'json-summary'],
 
       // Ratchet, not a target. Set just below the measured baseline recorded in
@@ -79,14 +80,17 @@ export default defineConfig({
       // instrument, aimed at the two layers holding the business rules, where
       // coverage is near-complete and any drop is a real loss rather than noise.
       thresholds: {
-        // Global — measured: statements 70.00, branches 62.82, functions
-        // 67.38, lines 69.46.
-        statements: 68,
-        branches: 60,
-        functions: 65,
-        lines: 67,
+        // Re-measured 2026-09-02 after KWM-063, which took the Drizzle
+        // adapters from 0% to ~97% and moved every global figure ~17 points.
+        //
+        // Global — measured: statements 86.92, branches 85.06, functions
+        // 87.97, lines 86.51.
+        statements: 84,
+        branches: 82,
+        functions: 85,
+        lines: 84,
 
-        // Domain — measured: 98.46 / 100 / 100 / 98.36. Pure business rules
+        // Domain — measured: 97.44 / 100 / 100 / 97.30. Pure business rules
         // with no I/O; there is no good reason for this to regress.
         'src/modules/*/domain/**': {
           statements: 95,
@@ -95,12 +99,29 @@ export default defineConfig({
           lines: 95,
         },
 
-        // Application (use-cases) — measured: 85.91 / 84.09 / 100 / 85.51.
+        // Application (use-cases) — measured: 88.42 / 88.04 / 100 / 87.71.
         'src/modules/*/application/**': {
-          statements: 83,
-          branches: 80,
+          statements: 86,
+          branches: 85,
           functions: 95,
-          lines: 83,
+          lines: 86,
+        },
+
+        // Drizzle adapters — measured: 97.46 / 96.15 / 95.45 / 97.32.
+        //
+        // This floor is the point of KWM-063. These files were at 0% for the
+        // life of the project because each imported a module-scope `db` and
+        // could not be pointed at a test database; covering them found a
+        // redemption that could never succeed, a rate-limit sweep that
+        // deleted live counters, and a repository returning columns its port
+        // does not declare. A regression here means the contract runs against
+        // real Postgres stopped happening, which is exactly the state this
+        // issue existed to leave behind.
+        'src/**/infrastructure/**/drizzle-*.ts': {
+          statements: 95,
+          branches: 90,
+          functions: 90,
+          lines: 95,
         },
       },
     },

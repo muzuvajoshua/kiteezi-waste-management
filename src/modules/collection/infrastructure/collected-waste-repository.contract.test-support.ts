@@ -1,17 +1,22 @@
 import { describe, it, expect } from 'vitest';
 import type { CollectedWasteRepository } from '../application/ports/collected-waste-repository.port';
-import { InMemoryCollectedWasteRepository } from './in-memory-collected-waste-repository.adapter';
 
 export interface CollectedWasteRepositoryContractHarness {
   readonly repository: CollectedWasteRepository;
 }
 
 // Shared behavioral contract for any CollectedWasteRepository
-// implementation. Run here against the in-memory fake; re-run against
-// DrizzleCollectedWasteRepository once a live/staging Postgres is
-// available in CI (KWM-063) — intentionally NOT wired up yet, matching the
-// rewards/auth/notifications/reports modules' contract tests (no live DB
-// in this environment).
+// implementation. Two files invoke it: in-memory-…adapter.test.ts with the
+// fake, and drizzle-…adapter.test.ts against a real Postgres (KWM-063). Both
+// run these same assertions, which is what stops the fake drifting from the
+// implementation it stands in for.
+//
+// KWM-063 also made this a `.test-support.ts` module. It used to be a
+// `.contract.test.ts` that both defined the contract AND ran it against the
+// fake at import time, so the Drizzle file importing the function re-ran the
+// whole in-memory suite inside itself — every case reported twice, and the
+// Drizzle file's own fixtures applied to a run that had nothing to do with
+// them. Definition here, invocation in the two adapter test files.
 export function testCollectedWasteRepositoryContract(
   name: string,
   createHarness: () => CollectedWasteRepositoryContractHarness
@@ -43,7 +48,3 @@ export function testCollectedWasteRepositoryContract(
     });
   });
 }
-
-testCollectedWasteRepositoryContract('InMemoryCollectedWasteRepository', () => ({
-  repository: new InMemoryCollectedWasteRepository(),
-}));

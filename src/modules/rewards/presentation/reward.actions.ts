@@ -4,7 +4,7 @@ import { requireUser, requireRole } from '@/modules/auth/presentation/auth-guard
 import { validate } from '@/lib/validation';
 import { actionResult } from '@/shared/presentation/action-result';
 import { enforceRateLimit, RATE_LIMITS } from '@/shared/presentation/rate-limit';
-import { rateLimiter } from '@/shared/presentation/composition';
+import { rateLimiter, auditLogger } from '@/shared/presentation/composition';
 import { type Result, ok } from '@/shared/application/result';
 import type { AppError } from '@/shared/application/app-error';
 import type { Role } from '@/utils/db/schema';
@@ -66,10 +66,21 @@ export async function redeemReward(rewardId: number): Promise<Result<{ balance: 
       { scope: 'redeemReward', id: me.userId, policy: RATE_LIMITS.mutationPerUser },
     ]);
     const { rewardId: id } = validate(redeemRewardSchema, { rewardId });
-    return redeemRewardUseCase(rewardTransactionManager, rewardCatalogRepository, {
+    const result = await redeemRewardUseCase(rewardTransactionManager, rewardCatalogRepository, {
       userId: me.userId,
       rewardId: id,
     });
+
+    if (result.ok) {
+      await auditLogger.record({
+        actorUserId: me.userId,
+        action: 'reward.redeemed',
+        target: `user:${me.userId}`,
+        after: { rewardId: id, balance: result.value.balance },
+      });
+    }
+
+    return result;
   });
 }
 
@@ -93,6 +104,18 @@ export async function saveReward(
       amount: input.amount,
       idempotencyKey: input.idempotencyKey ?? null,
     });
+    // The points mint is the highest-privilege operation in the system: one
+    // account granting value to another. Recorded whenever it actually
+    // applied — an idempotent no-op is not a second grant.
+    if (result.ok && result.value.applied) {
+      await auditLogger.record({
+        actorUserId: me.userId,
+        action: 'reward.points.granted',
+        target: `user:${input.recipientUserId}`,
+        after: { amount: input.amount, balance: result.value.balance },
+      });
+    }
+
     // Narrow the use-case's output to the caller-facing shape: whether the
     // mint was applied. The recipient's resulting balance is deliberately not
     // returned — the actor here is a collector, not the balance's owner.

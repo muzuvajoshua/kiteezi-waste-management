@@ -1,4 +1,4 @@
-import { txdb, type RewardTx } from '@/utils/db/txClient';
+import type { Database, DatabaseTx } from '@/shared/infrastructure/persistence/database';
 import { Reports } from '@/utils/db/schema';
 import { wrapExistingTx } from '@/modules/rewards/infrastructure/drizzle-reward-ledger-unit-of-work.adapter';
 import type { TransactionManager } from '@/shared/application/ports/transaction-manager';
@@ -15,7 +15,7 @@ import type { Report } from '../domain/report';
 // doesn't own. Same documented-exception category as the rewards module's
 // own cross-module read-join (RewardBalanceRow).
 class DrizzleReportWriteUnitOfWork implements ReportWriteUnitOfWork {
-  constructor(private readonly tx: RewardTx) {}
+  constructor(private readonly tx: DatabaseTx) {}
 
   get rewardLedgerTxManager() {
     return wrapExistingTx(this.tx);
@@ -47,12 +47,16 @@ class DrizzleReportWriteUnitOfWork implements ReportWriteUnitOfWork {
       status: created.status,
       createdAt: created.created_at,
       collectorId: created.collector_id,
+      // A new report has never been reviewed.
+      reviewReason: null,
     };
   }
 }
 
 export class DrizzleReportTransactionManager implements TransactionManager<ReportWriteUnitOfWork> {
+  constructor(private readonly db: Database) {}
+
   run<T>(work: (uow: ReportWriteUnitOfWork) => Promise<T>): Promise<T> {
-    return txdb.transaction((tx) => work(new DrizzleReportWriteUnitOfWork(tx)));
+    return this.db.transaction((tx) => work(new DrizzleReportWriteUnitOfWork(tx)));
   }
 }

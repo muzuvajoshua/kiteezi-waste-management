@@ -1,3 +1,5 @@
+import { db } from '@/utils/db/dbConfig';
+import { txdb } from '@/utils/db/txClient';
 import { DrizzleReportRepository } from '../infrastructure/drizzle-report-repository.adapter';
 import { DrizzleReportTransactionManager } from '../infrastructure/drizzle-report-transaction-manager.adapter';
 
@@ -7,5 +9,5 @@ import { DrizzleReportTransactionManager } from '../infrastructure/drizzle-repor
 // composed singleton too — imported directly in report.actions.ts from
 // @/modules/notifications/presentation/composition, the second
 // module-to-module composition reuse in this codebase.
-export const reportRepository = new DrizzleReportRepository();
-export const reportTransactionManager = new DrizzleReportTransactionManager();
+export const reportRepository = new DrizzleReportRepository(db);
+export const reportTransactionManager = new DrizzleReportTransactionManager(txdb);

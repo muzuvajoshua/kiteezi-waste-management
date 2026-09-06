@@ -1,5 +1,5 @@
 import { and, eq } from 'drizzle-orm';
-import { db } from '@/utils/db/dbConfig';
+import type { Database } from '@/shared/infrastructure/persistence/database';
 import { UserIdentities } from '@/utils/db/schema';
 import type { AuthProvider } from '../domain/auth-provider';
 import type {
@@ -14,11 +14,13 @@ import type {
 // sign-ins for the same subject fails at the database rather than quietly
 // creating a second account.
 export class DrizzleIdentityRepository implements IdentityRepository {
+  constructor(private readonly db: Database) {}
+
   async findByProviderSubject(
     provider: AuthProvider,
     providerSubject: string
   ): Promise<IdentityRecord | null> {
-    const [row] = await db
+    const [row] = await this.db
       .select({
         userId: UserIdentities.userId,
         provider: UserIdentities.provider,
@@ -38,7 +40,7 @@ export class DrizzleIdentityRepository implements IdentityRepository {
   }
 
   async link(input: LinkIdentityInput): Promise<IdentityRecord> {
-    const [row] = await db
+    const [row] = await this.db
       .insert(UserIdentities)
       .values({
         userId: input.userId,
@@ -58,7 +60,7 @@ export class DrizzleIdentityRepository implements IdentityRepository {
   }
 
   async updatePasswordHash(userId: number, passwordHash: string): Promise<boolean> {
-    const updated = await db
+    const updated = await this.db
       .update(UserIdentities)
       .set({ passwordHash })
       .where(and(eq(UserIdentities.userId, userId), eq(UserIdentities.provider, 'password')))

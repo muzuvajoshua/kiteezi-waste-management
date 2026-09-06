@@ -53,6 +53,15 @@ export const Reports = pgTable('reports', {
     status: reportStatusEnum('status').notNull().default('pending'),
     created_at: timestamp('created_at').defaultNow().notNull(),
     collector_id: integer('collector_id').references(() =>Users.id),
+    // KWM-032 — why a supervisor decided what they decided. Required by the
+    // domain when rejecting (see domain/review.ts), optional as a note when
+    // approving, so the column itself is nullable: existing rows predate any
+    // review, and an approval usually has nothing to say.
+    //
+    // Shown to the reporter on /my-reports, which is the point of storing it
+    // rather than leaving it in the audit log — a rejection the citizen
+    // cannot read tells them nothing about what to fix.
+    review_reason: text('review_reason'),
 }, (table) => ({
     userIdIdx: index('reports_user_id_idx').on(table.user_id),
     statusIdx: index('reports_status_idx').on(table.status),

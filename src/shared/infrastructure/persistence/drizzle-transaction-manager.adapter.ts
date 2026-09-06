@@ -1,11 +1,17 @@
-import { txdb, type RewardTx } from '@/utils/db/txClient';
+import type { Database, DatabaseTx } from './database';
 import type { TransactionManager } from '@/shared/application/ports/transaction-manager';
 
-// Wraps the existing neon-serverless Pool client (utils/db/txClient.ts) —
-// unchanged for now; only relocates behind the TransactionManager port so
-// Phase 1 use-cases depend on the interface, not on txdb directly.
-export class DrizzleTransactionManager implements TransactionManager<RewardTx> {
-  run<T>(work: (tx: RewardTx) => Promise<T>): Promise<T> {
-    return txdb.transaction(work);
+// Relocates transaction handling behind the TransactionManager port so
+// use-cases depend on the interface, not on a concrete client.
+//
+// KWM-063 replaced the module-scope `txdb` import with an injected client.
+// The composition root still passes the neon-serverless Pool — neon-http
+// cannot run interactive transactions — but the class no longer names it, so
+// a test can supply a PGlite client that does real BEGIN/COMMIT/ROLLBACK.
+export class DrizzleTransactionManager implements TransactionManager<DatabaseTx> {
+  constructor(private readonly db: Database) {}
+
+  run<T>(work: (tx: DatabaseTx) => Promise<T>): Promise<T> {
+    return this.db.transaction(work);
   }
 }

@@ -150,6 +150,20 @@ export function MyReportsView({ result }: { result: Result<Report[], AppError> }
                 <p className="mt-1 text-sm text-gray-600">
                   {report.wasteType} · {report.amount} kg · {formatDate(report.createdAt)}
                 </p>
+                {/*
+                  KWM-032 — the reviewer's reason, shown to the person who
+                  filed the report. Storing it and never displaying it would
+                  make the rejection unexplained, which is the whole problem
+                  the column exists to solve.
+                */}
+                {report.reviewReason !== null && (
+                  <p className="mt-1.5 text-sm text-gray-700">
+                    <span className="font-medium">
+                      {report.status === "rejected" ? "Why it was rejected:" : "Reviewer note:"}
+                    </span>{" "}
+                    {report.reviewReason}
+                  </p>
+                )}
               </div>
               <Badge className={`shrink-0 capitalize ${STATUS_STYLES[report.status]}`}>
                 {formatStatus(report.status)}

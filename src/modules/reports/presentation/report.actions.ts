@@ -4,7 +4,7 @@ import { requireUser, requireRole } from '@/modules/auth/presentation/auth-guard
 import { validate } from '@/lib/validation';
 import { actionResult } from '@/shared/presentation/action-result';
 import { enforceRateLimit, RATE_LIMITS } from '@/shared/presentation/rate-limit';
-import { rateLimiter } from '@/shared/presentation/composition';
+import { rateLimiter, auditLogger } from '@/shared/presentation/composition';
 import type { Result } from '@/shared/application/result';
 import type { AppError } from '@/shared/application/app-error';
 import type { Role } from '@/utils/db/schema';
@@ -17,12 +17,14 @@ import { updateReportStatus as updateReportStatusUseCase } from '../application/
 import { updateTaskStatus as updateTaskStatusUseCase } from '../application/update-task-status.usecase';
 import { listRecentReports } from '../application/list-recent-reports.usecase';
 import { listCollectionTasks } from '../application/list-collection-tasks.usecase';
+import { reviewReports as reviewReportsUseCase } from '../application/review-reports.usecase';
 import type { Report, ReportStatus, WasteType } from '../domain/report';
 import type { CollectionTaskSummary } from '../application/list-collection-tasks.usecase';
 import {
   createReportSchema,
   updateReportStatusSchema,
   updateTaskStatusSchema,
+  reviewReportsSchema,
   recentReportsSchema,
   wasteCollectionTasksSchema,
 } from './report.schemas';
@@ -92,7 +94,25 @@ export async function updateTaskStatus(
       { scope: 'updateTaskStatus', id: me.userId, policy: RATE_LIMITS.mutationPerUser },
     ]);
     const input = validate(updateTaskStatusSchema, { reportId, newStatus });
-    return updateTaskStatusUseCase(reportRepository, input.reportId, input.newStatus, me.userId);
+    const result = await updateTaskStatusUseCase(
+      reportRepository,
+      input.reportId,
+      input.newStatus,
+      me.userId
+    );
+
+    // Recorded only on a real change: a refused caller never reaches here, and
+    // a missing report resolves to ok(null), which is not a mutation.
+    if (result.ok && result.value) {
+      await auditLogger.record({
+        actorUserId: me.userId,
+        action: 'report.task.updated',
+        target: `report:${input.reportId}`,
+        after: { status: result.value.status, collectorId: result.value.collectorId },
+      });
+    }
+
+    return result;
   });
 }
 
@@ -115,7 +135,63 @@ export async function updateReportStatus(
       { scope: 'updateReportStatus', id: me.userId, policy: RATE_LIMITS.mutationPerUser },
     ]);
     const input = validate(updateReportStatusSchema, { reportId, status });
-    return updateReportStatusUseCase(reportRepository, input.reportId, input.status);
+    const result = await updateReportStatusUseCase(reportRepository, input.reportId, input.status);
+
+    if (result.ok && result.value) {
+      await auditLogger.record({
+        actorUserId: me.userId,
+        action: 'report.status.updated',
+        target: `report:${input.reportId}`,
+        // `before` is absent, not forgotten: neither write path reads the
+        // current status first (see domain/report.ts), and adding a read
+        // purely to enrich the log would change the write path's shape for
+        // a nice-to-have. Revisit with KWM-081's transition rules, which
+        // need the prior status anyway.
+        after: { status: result.value.status },
+      });
+    }
+
+    return result;
+  });
+}
+
+// KWM-032 — bulk triage. Deliberately a separate action from
+// updateReportStatus rather than a variadic version of it: this one may only
+// approve or reject, and carries the reason that decision requires.
+export async function reviewReports(
+  reportIds: number[],
+  decision: 'approved' | 'rejected',
+  reviewReason?: string
+): Promise<Result<Report[], AppError>> {
+  return actionResult(async () => {
+    const me = await requireRole(REVIEW_ROLES);
+    await enforceRateLimit(rateLimiter, [
+      { scope: 'reviewReports', id: me.userId, policy: RATE_LIMITS.mutationPerUser },
+    ]);
+    const input = validate(reviewReportsSchema, { reportIds, decision, reviewReason });
+    const result = await reviewReportsUseCase(reportRepository, {
+      reportIds: input.reportIds,
+      decision: input.decision,
+      reviewReason: input.reviewReason,
+    });
+
+    // One entry per report that actually changed, not one for the batch.
+    // "What happened to report 9, and who decided it" is the question this
+    // trail exists to answer, and a single batch row would not answer it.
+    // Reports skipped because another supervisor got there first are absent,
+    // which is correct — nothing happened to them here.
+    if (result.ok) {
+      for (const report of result.value) {
+        await auditLogger.record({
+          actorUserId: me.userId,
+          action: 'report.reviewed',
+          target: `report:${report.id}`,
+          after: { status: report.status, reviewReason: report.reviewReason },
+        });
+      }
+    }
+
+    return result;
   });
 }
 
