@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { RecycleBall } from "@/components/marketing/RecycleBall";
+import { HeroSignIn } from "@/components/marketing/HeroSignIn";
 import {
   ArrowRight,
   ClipboardCheck,
@@ -140,26 +140,20 @@ export function LandingPage() {
           </div>
 
           {/*
-            The right column is the brand's one memorable image: a ball folded
-            from waste paper, circled by the arrows of the recycling mark. The
-            facets and the loop are the same triangle at two scales, which is
-            the whole idea.
+            The right column is the brand's one memorable image and the way
+            into the app at the same time: a ball folded from waste paper,
+            circled by the arrows of the recycling mark, which unfolds into
+            the sign-in card when pressed.
 
-            It replaced a list of the six report_status values. That list was
-            honest and mildly useful, but a hero's job is to say what this is
-            in one glance, and a legend of status badges is reference material
-            — it belongs where someone is reading their own reports, which is
-            where it already lives (/my-reports has the same badges).
+            The facets and the loop are the same triangle at two scales, which
+            is the whole idea.
 
-            Deliberately still NOT a mocked-up report card with a location and
-            a photo, which is what the reference theme does with stock imagery.
-            A fabricated example rendered in the app's own styling is
-            indistinguishable from real data, and someone would eventually
-            cite it. An abstract mark cannot be mistaken for a record.
+            Signing in happens here rather than on a page of its own. /sign-in
+            used to sit inside the app shell, so a signed-out visitor was shown
+            a sidebar full of links they could not use in order to reach the
+            one thing they could.
           */}
-          <div className="mx-auto w-full max-w-sm text-brand-700 lg:max-w-none">
-            <RecycleBall className="h-auto w-full" />
-          </div>
+          <HeroSignIn />
         </div>
       </section>
 
@@ -261,7 +255,7 @@ export function LandingPage() {
               </p>
             </div>
             <Link
-              href="/sign-in"
+              href="#sign-in"
               className="inline-flex shrink-0 items-center gap-2 rounded-lg bg-brand-500 px-6 py-3 font-medium text-white transition-colors hover:bg-brand-600"
             >
               Get started
