@@ -1,96 +1,181 @@
 // @vitest-environment jsdom
 import '@/test-support/component-testing';
-import { describe, it, expect } from 'vitest';
-import { render } from '@testing-library/react';
+import { describe, it, expect, vi } from 'vitest';
+import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { RecycleBall } from './RecycleBall';
 
-// Queried through the container rather than by role: the whole graphic is
-// aria-hidden, so nothing in it is reachable by an accessible query — which is
-// itself one of the things asserted below.
+// Presentational: the parent owns whether the paper is unfolding and what
+// happens next, so every state here is reachable by passing a boolean.
 
-function renderBall() {
-  const { container } = render(<RecycleBall />);
+const svgOf = (container: HTMLElement) => {
   const svg = container.querySelector('svg');
   if (svg === null) throw new Error('no svg rendered');
   return svg;
-}
+};
 
 describe('RecycleBall', () => {
-  it('draws exactly three arrows', () => {
-    // The recycling mark is three arrows. Two or four is a different symbol.
-    const heads = renderBall().querySelectorAll('polygon[fill="currentColor"]');
+  describe('the mark', () => {
+    it('draws exactly three arrows', () => {
+      // The recycling mark is three arrows. Two or four is a different symbol.
+      const { container } = render(<RecycleBall />);
 
-    expect(heads).toHaveLength(3);
+      expect(svgOf(container).querySelectorAll('polygon[fill="currentColor"]')).toHaveLength(3);
+    });
+
+    it('spaces the three arms evenly around the loop', () => {
+      const { container } = render(<RecycleBall />);
+      const arms = [...svgOf(container).querySelectorAll('g[transform^="rotate"]')];
+
+      expect(arms.map((arm) => arm.getAttribute('transform'))).toEqual([
+        'rotate(0 200 200)',
+        'rotate(120 200 200)',
+        'rotate(240 200 200)',
+      ]);
+    });
+
+    it('draws each arm solid rather than dashed', () => {
+      // An earlier version travelled a dash pattern along the arms, which is
+      // what made the arrows dotted.
+      const { container } = render(<RecycleBall />);
+
+      expect([...svgOf(container).querySelectorAll('[stroke-dasharray]')]).toEqual([]);
+    });
+
+    it('lays a casing under each arm so crossings read as over and under', () => {
+      // Solid green over solid green is invisible. Without the casing the
+      // overlapping tips merge into one blob instead of one ribbon passing
+      // over another.
+      const { container } = render(<RecycleBall />);
+
+      expect(svgOf(container).querySelectorAll('path[stroke="#ffffff"]')).toHaveLength(3);
+    });
+
+    it('takes its colour from the surrounding text colour', () => {
+      const { container } = render(<RecycleBall />);
+
+      expect(svgOf(container).querySelector('path[stroke="currentColor"]')).not.toBeNull();
+    });
   });
 
-  it('spaces the three arms evenly around the loop', () => {
-    const arms = [...renderBall().querySelectorAll('g[transform^="rotate"]')];
+  describe('the ball', () => {
+    it('renders the folded star after the arrows', () => {
+      // SVG paints in document order and has no z-index, so the ball has to
+      // come last or the arrows disappear behind it.
+      //
+      // Scoped to the ball's own group: a plain `polygon[fill^="#"]` also
+      // matches the arrows' white casing heads, which sit before the ball, so
+      // the first "facet" it found was an arrow and the assertion failed for
+      // the wrong reason.
+      const svg = svgOf(render(<RecycleBall />).container);
+      const facets = svg.querySelectorAll('g[transform="translate(200 200)"] polygon');
+      const lastHead = [...svg.querySelectorAll('polygon[fill="currentColor"]')].at(-1);
 
-    expect(arms.map((arm) => arm.getAttribute('transform'))).toEqual([
-      'rotate(0 200 200)',
-      'rotate(120 200 200)',
-      'rotate(240 200 200)',
-    ]);
+      expect(facets.length).toBeGreaterThan(15);
+      expect(lastHead?.compareDocumentPosition(facets[0])).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    });
+
+    it('shows the opening in the middle', () => {
+      // The affordance: two polygons, the darker nested inside the lighter.
+      const svg = svgOf(render(<RecycleBall />).container);
+
+      expect(svg.querySelector('polygon[fill="#6b6555"]')).not.toBeNull();
+      expect(svg.querySelector('polygon[fill="#3d3931"]')).not.toBeNull();
+    });
   });
 
-  it('offsets each arm\'s dashes so the three read as one loop', () => {
-    // Identical delays would make all three arrows pulse in unison, which
-    // looks like a blinking triangle rather than a turning loop.
-    const delays = [...renderBall().querySelectorAll('line')].map(
-      (line) => (line as SVGLineElement).style.animationDelay
-    );
+  describe('as a control', () => {
+    it('is a button, because it reveals a panel rather than navigating', () => {
+      render(<RecycleBall />);
 
-    expect(new Set(delays).size).toBe(3);
+      expect(screen.getByRole('button')).toBeInTheDocument();
+    });
+
+    it('says what it does', () => {
+      // A control nobody can tell is a control is decoration.
+      render(<RecycleBall />);
+
+      expect(screen.getByText(/unfold to sign in/i)).toBeInTheDocument();
+    });
+
+    it('hides the graphic itself from assistive technology', () => {
+      // The button carries the name; narrating the drawing too would be noise.
+      const { container } = render(<RecycleBall />);
+
+      expect(svgOf(container)).toHaveAttribute('aria-hidden', 'true');
+    });
+
+    it('reports whether the paper is open', () => {
+      const { rerender } = render(<RecycleBall />);
+      expect(screen.getByRole('button')).toHaveAttribute('aria-expanded', 'false');
+
+      rerender(<RecycleBall unfolding />);
+      expect(screen.getByRole('button')).toHaveAttribute('aria-expanded', 'true');
+    });
+
+    it('has a visible focus ring for keyboard use', () => {
+      render(<RecycleBall />);
+
+      expect(screen.getByRole('button').className).toContain('focus-visible:ring-2');
+    });
+
+    it('calls back when pressed', async () => {
+      const onUnfold = vi.fn();
+      render(<RecycleBall onUnfold={onUnfold} />);
+
+      await userEvent.click(screen.getByRole('button'));
+
+      expect(onUnfold).toHaveBeenCalledTimes(1);
+    });
+
+    it('is reachable by keyboard', async () => {
+      // A <button> gets this for free, which is most of why it is one.
+      const onUnfold = vi.fn();
+      render(<RecycleBall onUnfold={onUnfold} />);
+
+      await userEvent.tab();
+      await userEvent.keyboard('{Enter}');
+
+      expect(onUnfold).toHaveBeenCalled();
+    });
   });
 
-  it('takes its colour from the surrounding text colour', () => {
-    // `currentColor` is what lets the hero set the arrows with a text class
-    // rather than this file hardcoding a brand hex.
-    const svg = renderBall();
+  describe('motion', () => {
+    it('turns the loop and bobs the paper while idle', () => {
+      const { container } = render(<RecycleBall />);
 
-    expect(svg.querySelector('line')?.getAttribute('stroke')).toBe('currentColor');
-    expect(svg.querySelector('polygon[fill="currentColor"]')).not.toBeNull();
-  });
+      expect(container.querySelector('.animate-loop-turn')).not.toBeNull();
+      expect(container.querySelector('.animate-paper-bob')).not.toBeNull();
+    });
 
-  it('is hidden from assistive technology', () => {
-    // Decorative. The hero's headline already says what this says, and
-    // narrating an abstract graphic adds noise rather than information.
-    const svg = renderBall();
+    it('lets the idle motion go once unfolding', () => {
+      // Otherwise the ball bobs while it is supposed to be flying apart.
+      const { container } = render(<RecycleBall unfolding />);
 
-    expect(svg).toHaveAttribute('aria-hidden', 'true');
-    expect(svg).toHaveAttribute('focusable', 'false');
-  });
+      expect(container.querySelector('.animate-ball-unfold')).not.toBeNull();
+      expect(container.querySelector('.animate-loop-open')).not.toBeNull();
+      expect(container.querySelector('.animate-paper-bob')).toBeNull();
+      expect(container.querySelector('.animate-loop-turn')).toBeNull();
+    });
 
-  it('stops moving when the viewer asks for reduced motion', () => {
-    // Every animated element has to carry the opt-out. A `prefers-reduced-
-    // motion` media query cannot be evaluated in jsdom, so this asserts the
-    // variant is present rather than the resulting computed style.
-    const svg = renderBall();
-    const animated = [...svg.querySelectorAll('[class*="animate-"]')];
+    it('carries the reduced-motion opt-out on both idle animations', () => {
+      // jsdom cannot evaluate the media query, so this asserts the variant is
+      // present rather than the resulting computed style.
+      const { container } = render(<RecycleBall />);
+      const idle = [
+        container.querySelector('.animate-loop-turn'),
+        container.querySelector('.animate-paper-bob'),
+      ];
 
-    expect(animated.length).toBeGreaterThan(0);
-    expect(
-      animated.every((el) => el.getAttribute('class')?.includes('motion-reduce:animate-none'))
-    ).toBe(true);
-  });
-
-  it('renders the folded ball behind the arrows', () => {
-    // SVG paints in document order and has no z-index, so the ball has to come
-    // last or the arrows disappear behind it.
-    const svg = renderBall();
-    const facets = svg.querySelectorAll('polygon[fill^="#"]');
-    const firstFacet = facets[0];
-    const lastHead = [...svg.querySelectorAll('polygon[fill="currentColor"]')].at(-1);
-
-    expect(facets.length).toBeGreaterThan(30);
-    expect(lastHead?.compareDocumentPosition(firstFacet)).toBe(
-      Node.DOCUMENT_POSITION_FOLLOWING
-    );
+      expect(
+        idle.every((el) => el?.getAttribute('class')?.includes('motion-reduce:animate-none'))
+      ).toBe(true);
+    });
   });
 
   it('passes its class through so the hero can size it', () => {
-    const { container } = render(<RecycleBall className="h-auto w-full" />);
+    render(<RecycleBall className="max-w-sm" />);
 
-    expect(container.querySelector('svg')).toHaveClass('h-auto', 'w-full');
+    expect(screen.getByRole('button')).toHaveClass('max-w-sm');
   });
 });
