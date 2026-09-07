@@ -4,9 +4,13 @@ import { Leaf } from "lucide-react";
 // Public chrome: a header with a route into the app, and a footer.
 //
 // Deliberately not AppShell. The sidebar links to pages a signed-out visitor
-// cannot use, and AppShell mounts GoogleAuthProvider, which polls
-// /api/auth/me — a cost with no purpose on a page that has no session and
-// asks for none. The only auth affordance here is a link to /sign-in.
+// cannot use, and AppShell mounts GoogleAuthProvider, which fetches
+// /api/auth/me and loads Google's script — a cost with no purpose on a page
+// most visitors will read without ever signing in.
+//
+// Sign-in still works here: HeroSignIn mounts that provider itself, and only
+// once someone opens the card. The header's Sign in button is a plain link to
+// `/#sign-in`, which is what opens it.
 export default function MarketingLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-screen flex-col bg-white">
@@ -33,7 +37,7 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
               Who uses it
             </Link>
             <Link
-              href="/sign-in"
+              href="/#sign-in"
               className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-700"
             >
               Sign in
