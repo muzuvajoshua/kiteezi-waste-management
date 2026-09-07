@@ -55,7 +55,7 @@ describe('ResetPasswordForm', () => {
 
     await submit(user);
 
-    await waitFor(() => expect(push).toHaveBeenCalledWith('/sign-in'));
+    await waitFor(() => expect(push).toHaveBeenCalledWith('/#sign-in'));
   });
 
   it('shows the weak-password message from the domain', async () => {
