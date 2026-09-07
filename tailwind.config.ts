@@ -13,40 +13,79 @@ const config: Config = {
   		// to Tailwind's own stack and disagrees with the body font.
   		fontFamily: {
   			sans: ['var(--font-sans)', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+  			// Headings. Heavy geometric sans, per the reference.
+  			display: ['var(--font-display)', 'var(--font-sans)', 'sans-serif'],
+  			// Section eyebrows only — never a whole sentence.
+  			script: ['var(--font-script)', 'cursive'],
+  		},
+  		// A display scale, because the reference's headings are far larger and
+  		// tighter than Tailwind's defaults allow without fighting them. Each
+  		// pairs a size with the leading and tracking it needs: big type wants
+  		// tight leading and negative tracking, and the two have to move
+  		// together or the heading looks either loose or cramped.
+  		fontSize: {
+  			'display-sm': ['2rem', { lineHeight: '1.1', letterSpacing: '-0.02em' }],
+  			'display-md': ['2.75rem', { lineHeight: '1.05', letterSpacing: '-0.025em' }],
+  			'display-lg': ['3.5rem', { lineHeight: '1.02', letterSpacing: '-0.03em' }],
+  			'display-xl': ['4.5rem', { lineHeight: '0.98', letterSpacing: '-0.035em' }],
   		},
   		colors: {
-  			// The brand scale. Every green in this codebase was a hardcoded
-  			// `green-600` literal, so there was no single place to adjust the
-  			// palette and no way to tell a brand green from an incidental one
-  			// — a success badge and a primary button both said `green-600`
-  			// while meaning different things.
+  			// Measured from the reference walkthrough, not guessed. The whole
+  			// scale is rebuilt around hue ~150 (emerald); the previous one sat
+  			// at ~133 (yellow-green), which was most of why this site did not
+  			// feel like the reference.
   			//
-  			// Deliberately NOT wired into the shadcn `--primary` variable:
-  			// that is consumed by button/badge/dropdown defaults, and
-  			// repointing it would restyle every existing control at once.
-  			// This scale is additive, so components adopt it as they are
-  			// touched.
+  			// 700 is the measured mid-green #017f42, 950 the measured dark
+  			// surface #001c09, and 300 the measured bright lime #5eeda5.
   			brand: {
-  				50: '#f0f9f1',
-  				100: '#dcf0de',
-  				200: '#bbe1c1',
-  				300: '#8ecb99',
-  				400: '#5aad6b',
-  				500: '#358f49',
-  				600: '#237338',
-  				700: '#1c5c2e',
-  				800: '#194a27',
-  				900: '#153d21',
-  				950: '#0a2212',
+  				50: '#eefdf5',
+  				100: '#d5f9e5',
+  				200: '#a9f1c9',
+  				300: '#5eeda5',
+  				400: '#2ed484',
+  				500: '#11b869',
+  				600: '#039a56',
+  				700: '#017f42',
+  				800: '#016436',
+  				900: '#02482a',
+  				950: '#001c09',
   			},
-  			// Headings and high-contrast surfaces. A near-black with a green
-  			// cast rather than pure grey, so dark panels read as part of the
-  			// same palette instead of a separate neutral.
+  			// The accent, and the reason the palette reads as warm rather than
+  			// clinical. 500 is the measured #ff8700. Used for one thing at a
+  			// time — a primary action, an active nav item, an eyebrow — never
+  			// as a fill for large areas.
+  			accent: {
+  				50: '#fff6e8',
+  				100: '#ffe8c6',
+  				200: '#ffd08a',
+  				300: '#ffb04d',
+  				400: '#ff9a1f',
+  				500: '#ff8700',
+  				600: '#e06c00',
+  				700: '#b35200',
+  				800: '#8a3f00',
+  				900: '#6b3200',
+  				DEFAULT: 'hsl(var(--accent))',
+  				foreground: 'hsl(var(--accent-foreground))'
+  			},
+  			// The warm ground. Cream rather than white, which is what stops the
+  			// light sections reading as a blank browser page.
+  			cream: {
+  				50: '#fdfcf8',
+  				100: '#f9f7f1',
+  				200: '#f2eee3',
+  				300: '#e8e3d4',
+  				400: '#d9d2be',
+  			},
+  			// Dark surfaces: header, footer, hero scrim, feature bands. A
+  			// near-black with a strong green cast, so a dark panel reads as
+  			// part of the palette rather than a separate neutral.
   			ink: {
-  				700: '#22322a',
-  				800: '#18241e',
-  				900: '#101a15',
-  				950: '#0a110e',
+  				600: '#0a4526',
+  				700: '#06331b',
+  				800: '#032411',
+  				900: '#001c09',
+  				950: '#001206',
   			},
   			background: 'hsl(var(--background))',
   			foreground: 'hsl(var(--foreground))',
@@ -70,10 +109,6 @@ const config: Config = {
   				DEFAULT: 'hsl(var(--muted))',
   				foreground: 'hsl(var(--muted-foreground))'
   			},
-  			accent: {
-  				DEFAULT: 'hsl(var(--accent))',
-  				foreground: 'hsl(var(--accent-foreground))'
-  			},
   			destructive: {
   				DEFAULT: 'hsl(var(--destructive))',
   				foreground: 'hsl(var(--destructive-foreground))'
@@ -92,7 +127,16 @@ const config: Config = {
   		borderRadius: {
   			lg: 'var(--radius)',
   			md: 'calc(var(--radius) - 2px)',
-  			sm: 'calc(var(--radius) - 4px)'
+  			sm: 'calc(var(--radius) - 4px)',
+  			// Cards in the reference are rounded well past Tailwind's `2xl`.
+  			card: '1.5rem',
+  			panel: '2rem',
+  		},
+  		// The vertical rhythm between bands. Named so a section cannot be
+  		// spaced by an arbitrary number that drifts from its neighbours.
+  		spacing: {
+  			band: '5.5rem',
+  			'band-lg': '7.5rem',
   		},
   		// The hero's recycling loop. Declared here rather than in a <style>
   		// tag so the `motion-reduce:animate-none` variant can switch them off,
@@ -123,6 +167,18 @@ const config: Config = {
   				'0%': { transform: 'scale(1)', opacity: '1' },
   				'100%': { transform: 'scale(1.7)', opacity: '0' },
   			},
+  			// Scroll reveal. Deliberately small — a 12px rise and a fade, not
+  			// a slide across the viewport. The reference does this on section
+  			// entry and it is the one place the effect earns its keep; used on
+  			// every card it would read as the generic template it usually is.
+  			reveal: {
+  				'0%': { opacity: '0', transform: 'translateY(12px)' },
+  				'100%': { opacity: '1', transform: 'translateY(0)' },
+  			},
+  			// The page-transition loader: an arc of dots that spins.
+  			'dot-spin': {
+  				to: { transform: 'rotate(360deg)' },
+  			},
   			// The sign-in card arriving where the paper was.
   			'card-open': {
   				'0%': { transform: 'scale(0.94)', opacity: '0' },
@@ -135,6 +191,8 @@ const config: Config = {
   			'ball-unfold': 'ball-unfold 520ms cubic-bezier(0.4, 0, 0.9, 0.3) forwards',
   			'loop-open': 'loop-open 520ms ease-out forwards',
   			'card-open': 'card-open 260ms ease-out',
+  			reveal: 'reveal 620ms cubic-bezier(0.16, 1, 0.3, 1) both',
+  			'dot-spin': 'dot-spin 1.1s linear infinite',
   		}
   	}
   },
