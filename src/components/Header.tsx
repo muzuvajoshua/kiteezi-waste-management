@@ -192,13 +192,14 @@ export default function Header({ onMenuClick }: HeaderProps) {
             </span>
           </div>
           {!loggedIn ? (
-            // Google inline for one-click, plus a link to /sign-in for the
-            // email/password form — that flow needs more room than the header
-            // has, and a password field in a header invites mis-typing.
+            // Google inline for one-click, plus a link to the landing page's
+            // sign-in card for the email/password form — that flow needs more
+            // room than the header has, and a password field in a header
+            // invites mis-typing.
             <div className="flex items-center gap-2">
               <GoogleSignInButton />
               <Link
-                href="/sign-in"
+                href="/#sign-in"
                 className="whitespace-nowrap text-sm font-medium text-green-700 underline hover:text-green-800"
               >
                 Use email
