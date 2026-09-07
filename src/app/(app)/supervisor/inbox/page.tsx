@@ -28,8 +28,8 @@ export default async function SupervisorInboxPage() {
   return (
     <div className="mx-auto max-w-3xl">
       <div className="mb-6">
-        <h1 className="text-2xl font-semibold text-gray-900">Review queue</h1>
-        <p className="mt-1 text-gray-600">
+        <h1 className="font-display text-display-sm font-extrabold text-ink-900">Review queue</h1>
+        <p className="mt-1 text-ink-700/70">
           Reports waiting on a decision. Select any number, then approve or reject them together.
         </p>
       </div>
