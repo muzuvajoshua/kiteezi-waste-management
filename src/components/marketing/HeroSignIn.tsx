@@ -123,8 +123,15 @@ export function HeroSignIn() {
   }
 
   return (
-    <div id={SIGN_IN_HASH} className="mx-auto w-full max-w-sm scroll-mt-24 lg:max-w-none">
-      <RecycleBall unfolding={unfolding} onUnfold={openCard} className="text-brand-700" />
+    <div
+      id={SIGN_IN_HASH}
+      // --ball-casing is what shows through where one arrow crosses another,
+      // so it has to be the band's own colour (ink-900). The arrows themselves
+      // take the brand green from `text-`.
+      style={{ "--ball-casing": "#001c09" } as React.CSSProperties}
+      className="mx-auto w-full max-w-sm scroll-mt-24 text-brand-500 lg:max-w-none"
+    >
+      <RecycleBall unfolding={unfolding} onUnfold={openCard} />
     </div>
   );
 }
