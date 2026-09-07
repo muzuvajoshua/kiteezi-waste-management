@@ -46,9 +46,20 @@ describe('RecycleBall', () => {
       // Solid green over solid green is invisible. Without the casing the
       // overlapping tips merge into one blob instead of one ribbon passing
       // over another.
+      //
+      // The colour comes from a custom property rather than being fixed,
+      // because it has to match whatever the ball sits on. It was hardcoded
+      // white, which was fine on a pale hero and became a bright sticker
+      // outline the moment the hero turned dark green.
+      // Asserted on the inline style, not the attribute: SVG presentation
+      // attributes are not parsed as CSS, so `stroke="var(--x)"` is silently
+      // ignored. That is exactly how the first fix shipped looking broken.
       const { container } = render(<RecycleBall />);
+      const casings = [...svgOf(container).querySelectorAll<SVGPathElement>('path')].filter(
+        (path) => path.style.stroke.includes('--ball-casing')
+      );
 
-      expect(svgOf(container).querySelectorAll('path[stroke="#ffffff"]')).toHaveLength(3);
+      expect(casings).toHaveLength(3);
     });
 
     it('takes its colour from the surrounding text colour', () => {
