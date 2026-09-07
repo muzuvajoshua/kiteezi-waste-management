@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import '@/test-support/component-testing';
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { LandingPage } from './LandingPage';
 
@@ -21,7 +21,26 @@ import { LandingPage } from './LandingPage';
 // plausible-sounding number is the easiest thing in the world to add to a
 // hero, and the hardest to notice later.
 
+// The hero's sign-in card reaches the password server actions, which import
+// the Drizzle composition root and its module-scope `neon()` — that throws at
+// import time without DATABASE_URL, which the test environment does not set.
+// SignInPanel has its own tests; this file is about the page around it.
+vi.mock('@/components/auth/SignInPanel', () => ({
+  SignInPanel: () => <div data-testid="sign-in-panel" />,
+}));
+
 beforeEach(() => {
+  // HeroSignIn asks whether to animate. jsdom has no matchMedia.
+  Object.defineProperty(window, 'matchMedia', {
+    writable: true,
+    value: (query: string) => ({
+      matches: false,
+      media: query,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    }),
+  });
+
   render(<LandingPage />);
 });
 
@@ -35,9 +54,12 @@ describe('LandingPage', () => {
     });
 
     it('offers a way to sign in', () => {
+      // A fragment, not a route. Sign-in is a card on this page now, and
+      // HeroSignIn opens it when the fragment matches — so the closing call to
+      // action and the header's Sign in button share one mechanism.
       expect(screen.getByRole('link', { name: /get started/i })).toHaveAttribute(
         'href',
-        '/sign-in'
+        '#sign-in'
       );
     });
   });
