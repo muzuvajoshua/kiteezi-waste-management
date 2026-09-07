@@ -47,10 +47,19 @@ const HEAD_HALF = 27;
  *
  * Solid green over solid green is invisible, so without a casing the
  * overlapping tips merge into one blob rather than reading as a ribbon passing
- * over another. White because the hero's gradient is effectively white by the
- * height the visual sits at.
+ * over another.
+ *
+ * It has to match whatever the ball is sitting on, so it comes from a custom
+ * property the parent sets. Hardcoding white was fine while the hero was pale
+ * and became obviously wrong the moment the hero turned dark green — the
+ * casing read as a bright sticker outline traced around the arrows.
+ *
+ * Applied through `style`, NOT through the `stroke`/`fill` attributes. SVG
+ * presentation attributes are not parsed as CSS values, so `stroke="var(--x)"`
+ * is silently ignored and the fallback never even applies — the first attempt
+ * at this looked exactly as broken as the hardcoded white it replaced.
  */
-const CASING = "#ffffff";
+const CASING = "var(--ball-casing, #ffffff)";
 
 type Point = readonly [number, number];
 
@@ -145,15 +154,14 @@ export function RecycleBall({ className, unfolding = false, onUnfold }: RecycleB
               <path
                 d={ARM.ribbon}
                 fill="none"
-                stroke={CASING}
+                style={{ stroke: CASING }}
                 strokeWidth={38}
                 strokeLinecap="round"
                 strokeLinejoin="round"
               />
               <polygon
                 points={ARM.head}
-                fill={CASING}
-                stroke={CASING}
+                style={{ fill: CASING, stroke: CASING }}
                 strokeWidth={12}
                 strokeLinejoin="round"
               />
@@ -208,7 +216,12 @@ export function RecycleBall({ className, unfolding = false, onUnfold }: RecycleB
         has two buttons, so this one says what it does — quietly, and it is the
         only text in the graphic.
       */}
-      <span className="mt-1 block text-center text-sm text-gray-500 transition-colors group-hover:text-brand-700">
+      {/*
+        Inherits its colour from the parent rather than naming one, for the
+        same reason as the casing: this now sits on a dark band, and a fixed
+        grey was unreadable there.
+      */}
+      <span className="mt-3 block text-center text-sm text-current/70 transition-colors group-hover:text-accent-500">
         Unfold to sign in
       </span>
     </button>
