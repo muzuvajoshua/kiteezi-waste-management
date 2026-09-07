@@ -88,11 +88,12 @@ describe('LandingPage', () => {
     });
 
     it('numbers them so the order is visible, not just implied', () => {
+      // Zero-padded, matching the reference's `01 / 02` treatment.
       expect(steps().map((step) => step.querySelector('span')?.textContent)).toEqual([
-        '1',
-        '2',
-        '3',
-        '4',
+        '01',
+        '02',
+        '03',
+        '04',
       ]);
     });
   });
