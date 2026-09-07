@@ -34,7 +34,7 @@ const WASTE_TYPES: readonly WasteType[] = [
 const POINTS_PER_REPORT = 10;
 
 const FIELD_CLASS =
-  "w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-900 focus:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-500";
+  "w-full rounded-lg border border-cream-400 px-3 py-2 text-ink-900 focus:border-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-700";
 
 export function ReportForm() {
   const [location, setLocation] = useState("");
@@ -80,7 +80,7 @@ export function ReportForm() {
   return (
     <form onSubmit={handleSubmit} className="max-w-xl space-y-5" noValidate={false}>
       <div>
-        <label htmlFor="location" className="mb-1 block text-sm font-medium text-gray-700">
+        <label htmlFor="location" className="mb-1 block text-sm font-medium text-ink-800">
           Location
         </label>
         <input
@@ -97,7 +97,7 @@ export function ReportForm() {
       </div>
 
       <div>
-        <label htmlFor="wasteType" className="mb-1 block text-sm font-medium text-gray-700">
+        <label htmlFor="wasteType" className="mb-1 block text-sm font-medium text-ink-800">
           Waste type
         </label>
         <select
@@ -116,7 +116,7 @@ export function ReportForm() {
       </div>
 
       <div>
-        <label htmlFor="amount" className="mb-1 block text-sm font-medium text-gray-700">
+        <label htmlFor="amount" className="mb-1 block text-sm font-medium text-ink-800">
           Amount (kg)
         </label>
         <input
@@ -134,8 +134,8 @@ export function ReportForm() {
       </div>
 
       <div>
-        <label htmlFor="imageUrl" className="mb-1 block text-sm font-medium text-gray-700">
-          Photo URL <span className="text-gray-400">(optional)</span>
+        <label htmlFor="imageUrl" className="mb-1 block text-sm font-medium text-ink-800">
+          Photo URL <span className="text-ink-700/40">(optional)</span>
         </label>
         <input
           id="imageUrl"
@@ -147,7 +147,7 @@ export function ReportForm() {
           placeholder="https://…"
           className={FIELD_CLASS}
         />
-        <p className="mt-1 text-xs text-gray-500">
+        <p className="mt-1 text-xs text-ink-700/60">
           Direct photo upload arrives with KWM-026; paste an https link for now.
         </p>
       </div>
@@ -155,7 +155,7 @@ export function ReportForm() {
       <Button
         type="submit"
         disabled={isSubmitting}
-        className="w-full bg-green-600 py-3 text-white hover:bg-green-700 disabled:opacity-50 sm:w-auto"
+        className="w-full bg-brand-700 py-3 text-white hover:bg-brand-800 disabled:opacity-50 sm:w-auto"
       >
         {isSubmitting ? "Submitting…" : "Submit report"}
         <Send className="ml-2 h-4 w-4" />
@@ -164,7 +164,7 @@ export function ReportForm() {
       {submitted && (
         <div
           role="status"
-          className="flex items-center gap-2 rounded-lg bg-green-50 p-4 text-green-800"
+          className="flex items-center gap-2 rounded-full bg-brand-50 p-4 text-green-800"
         >
           <Leaf className="h-5 w-5 shrink-0" />
           <span>
