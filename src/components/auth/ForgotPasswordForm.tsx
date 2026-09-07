@@ -7,7 +7,7 @@ import { actionErrorMessage } from "@/lib/action-error";
 import { requestPasswordResetAction } from "@/modules/auth/presentation/password-reset.actions";
 
 const FIELD_CLASS =
-  "w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-900 focus:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-500";
+  "w-full rounded-lg border border-cream-400 px-3 py-2 text-ink-900 focus:border-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-700";
 
 export function ForgotPasswordForm() {
   const [email, setEmail] = useState("");
@@ -36,7 +36,7 @@ export function ForgotPasswordForm() {
     return (
       <div
         role="status"
-        className="flex items-start gap-2 rounded-lg bg-green-50 p-4 text-green-900"
+        className="flex items-start gap-2 rounded-full bg-brand-50 p-4 text-green-900"
       >
         <MailCheck className="mt-0.5 h-5 w-5 shrink-0" />
         <div>
@@ -56,7 +56,7 @@ export function ForgotPasswordForm() {
   return (
     <form onSubmit={handleSubmit} className="w-full max-w-sm space-y-4">
       <div>
-        <label htmlFor="email" className="mb-1 block text-sm font-medium text-gray-700">
+        <label htmlFor="email" className="mb-1 block text-sm font-medium text-ink-800">
           Email address
         </label>
         <input
@@ -85,7 +85,7 @@ export function ForgotPasswordForm() {
       <Button
         type="submit"
         disabled={isSubmitting}
-        className="w-full bg-green-600 py-2 text-white hover:bg-green-700 disabled:opacity-50"
+        className="w-full bg-brand-700 py-2 text-white hover:bg-brand-800 disabled:opacity-50"
       >
         {isSubmitting ? "Sending…" : "Send reset link"}
       </Button>
