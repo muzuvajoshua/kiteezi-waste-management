@@ -1,95 +1,216 @@
-// The hero visual: a ball folded from waste paper, circled by the three
-// arrows of the recycling mark.
-//
-// The two halves share a shape on purpose. A kusudama is a sphere built from
-// flat triangular panels, and the recycling mark is a triangle of three
-// arrows — so the facets and the loop are the same form at two scales. That
-// correspondence is the whole idea; everything else here is restraint.
-//
-// Inline SVG, no image asset and no library: it scales to any size, takes the
-// brand colour from `currentColor`, and costs no network request — where a PNG
-// of this would be larger, fixed-resolution and another thing to host.
-//
-// The ball's facets come from paper-ball-geometry.ts rather than being pasted
-// in as literals. See that file for why.
-//
-// Marked `aria-hidden`: it is decorative. The hero's headline already says
-// what this says, and describing an abstract graphic to a screen reader adds
-// noise rather than information.
+"use client";
 
-import { CREASE, paperBallFacets } from "./paper-ball-geometry";
+import { CREASE, paperBall } from "./paper-ball-geometry";
 
-// --- geometry -------------------------------------------------------------
+// The hero visual: a star ball folded from waste paper, held inside the three
+// arrows of the recycling mark. Pressing it unfolds the paper to reveal the
+// sign-in card.
 //
-// The arrow triangle has its centre at (200, 200) with a centre-to-vertex
-// radius of 150, its top vertex pointing up. One arm is drawn along the side
-// from the top vertex to the bottom-right one; the other two are that same arm
-// rotated 120° and 240°, which is why only one set of coordinates appears
-// below.
+// The two halves share a shape on purpose. A kusudama is a sphere of folded
+// triangles and the mark is a triangle of three arrows, so the star's points
+// and the loop are the same form at two scales.
 //
-// Those numbers came from the side's own unit vector rather than from
-// eyeballing: the shaft runs from 10% to 70% along the side, and the
-// arrowhead's tip sits at 92% with its base 18 units either side of the shaft
-// end, perpendicular to it. Corner gaps are what remains.
-const ARM = {
-  shaft: { x1: 213, y1: 72.5, x2: 290.9, y2: 207.5 },
-  head: '319.5,257 306.5,198.5 275.3,216.5',
-} as const;
+// A `<button>`, not a link: it reveals a panel on this page rather than
+// navigating. Presentational — the parent owns whether it is unfolding and
+// what happens next, which keeps every state reachable in a test by passing a
+// boolean.
+//
+// Inline SVG, no image asset and no library: it scales, takes the brand colour
+// from `currentColor`, and costs no request.
 
-// Clockwise, matching the standard mark. Each arm's dashes start a third of a
-// cycle behind the one before, so the three read as one continuous loop
-// rather than three arrows twitching in unison.
-const ARMS = [
-  { rotate: 0, delay: '0s' },
-  { rotate: 120, delay: '-0.867s' },
-  { rotate: 240, delay: '-1.733s' },
-] as const;
+// --- the recycling mark ---------------------------------------------------
+//
+// Centre (200, 200), centre-to-vertex radius 150, top vertex up, running
+// clockwise like the standard mark.
+//
+// One arm is described here and the other two are it rotated 120° and 240°, so
+// there is one set of numbers to get wrong rather than three. An arm starts
+// partway along its own side, rounds the corner, and its head continues onto
+// the NEXT side far enough to overlap where that arm begins — which is what
+// makes the tips look tucked into one another instead of three loose chevrons.
+const LOOP_CENTRE = 200;
+const LOOP_RADIUS = 150;
 
-export function RecycleBall({ className }: { className?: string }) {
+/** Fraction along its own side where an arm begins. */
+const START = 0.4;
+/** Fraction along the next side where the shaft stops and the head begins. */
+const HEAD_BASE = 0.3;
+/** Fraction along the next side where the head's point lands. */
+const HEAD_TIP = 0.58;
+/** Distance either side of a corner used to round it. */
+const CORNER = 36;
+/** Half-width of the arrowhead. Wider than the shaft or it reads as a kink. */
+const HEAD_HALF = 27;
+
+/**
+ * The casing colour: what shows in the gap where one arrow crosses another.
+ *
+ * Solid green over solid green is invisible, so without a casing the
+ * overlapping tips merge into one blob rather than reading as a ribbon passing
+ * over another. White because the hero's gradient is effectively white by the
+ * height the visual sits at.
+ */
+const CASING = "#ffffff";
+
+type Point = readonly [number, number];
+
+const VERTICES: readonly Point[] = [0, 1, 2].map((i) => {
+  const angle = -Math.PI / 2 + (i * 2 * Math.PI) / 3;
+  return [
+    LOOP_CENTRE + LOOP_RADIUS * Math.cos(angle),
+    LOOP_CENTRE + LOOP_RADIUS * Math.sin(angle),
+  ] as const;
+});
+
+const round = (n: number) => Math.round(n * 10) / 10;
+
+const lerp = (a: Point, b: Point, t: number): Point => [
+  a[0] + (b[0] - a[0]) * t,
+  a[1] + (b[1] - a[1]) * t,
+];
+
+const unit = (a: Point, b: Point): Point => {
+  const [dx, dy] = [b[0] - a[0], b[1] - a[1]];
+  const length = Math.hypot(dx, dy);
+  return [dx / length, dy / length];
+};
+
+function buildArm() {
+  const [a, b, c] = [VERTICES[0], VERTICES[1], VERTICES[2]];
+  const into = unit(a, b);
+  const outOf = unit(b, c);
+
+  const start = lerp(a, b, START);
+  const beforeCorner: Point = [b[0] - into[0] * CORNER, b[1] - into[1] * CORNER];
+  const afterCorner: Point = [b[0] + outOf[0] * CORNER, b[1] + outOf[1] * CORNER];
+  const headBase = lerp(b, c, HEAD_BASE);
+  const tip = lerp(b, c, HEAD_TIP);
+
+  const perpendicular: Point = [-outOf[1], outOf[0]];
+  const cornerA: Point = [
+    headBase[0] - perpendicular[0] * HEAD_HALF,
+    headBase[1] - perpendicular[1] * HEAD_HALF,
+  ];
+  const cornerB: Point = [
+    headBase[0] + perpendicular[0] * HEAD_HALF,
+    headBase[1] + perpendicular[1] * HEAD_HALF,
+  ];
+
+  return {
+    ribbon: [
+      `M ${round(start[0])} ${round(start[1])}`,
+      `L ${round(beforeCorner[0])} ${round(beforeCorner[1])}`,
+      `Q ${round(b[0])} ${round(b[1])} ${round(afterCorner[0])} ${round(afterCorner[1])}`,
+      `L ${round(headBase[0])} ${round(headBase[1])}`,
+    ].join(" "),
+    head: [tip, cornerA, cornerB].map(([x, y]) => `${round(x)},${round(y)}`).join(" "),
+  };
+}
+
+const ARM = buildArm();
+const ROTATIONS = [0, 120, 240];
+const BALL = paperBall();
+
+export interface RecycleBallProps {
+  readonly className?: string;
+  /** True once the paper is opening. Driven by the parent. */
+  readonly unfolding?: boolean;
+  readonly onUnfold?: () => void;
+}
+
+export function RecycleBall({ className, unfolding = false, onUnfold }: RecycleBallProps) {
   return (
-    <svg
-      viewBox="0 0 400 400"
-      aria-hidden="true"
-      focusable="false"
-      className={className}
+    <button
+      type="button"
+      onClick={onUnfold}
+      aria-expanded={unfolding}
+      className={`group block w-full rounded-2xl outline-none ring-brand-600 ring-offset-4 focus-visible:ring-2 ${className ?? ""}`}
     >
-      {ARMS.map(({ rotate, delay }) => (
-        <g key={rotate} transform={`rotate(${rotate} 200 200)`}>
-          <line
-            x1={ARM.shaft.x1}
-            y1={ARM.shaft.y1}
-            x2={ARM.shaft.x2}
-            y2={ARM.shaft.y2}
-            stroke="currentColor"
-            strokeWidth={15}
-            strokeLinecap="round"
-            strokeDasharray="22 13"
-            style={{ animationDelay: delay }}
-            className="animate-dash-travel motion-reduce:animate-none"
-          />
-          <polygon points={ARM.head} fill="currentColor" />
-        </g>
-      ))}
-
-      {/*
-        Two nested groups, not one. The outer group positions the ball with an
-        SVG `transform` attribute; the inner one carries the CSS animation. A
-        CSS `transform` overrides the attribute rather than composing with it,
-        so animating the positioned group directly throws the ball to the
-        viewBox origin — which is exactly what happened on the first attempt.
-      */}
-      <g transform="translate(200 200)">
+      <svg viewBox="0 0 400 400" aria-hidden="true" focusable="false" className="h-auto w-full">
+        {/*
+          The whole loop turns rather than each arrow animating on its own.
+          Three-fold symmetry means 120° is a complete cycle, so it repeats
+          seamlessly. An earlier version travelled a dash pattern along each
+          arm, which is what made the arrows dotted.
+        */}
         <g
-          className="animate-paper-bob motion-reduce:animate-none"
-          stroke={CREASE}
-          strokeWidth={0.5}
-          strokeLinejoin="round"
+          className={
+            unfolding
+              ? "origin-[200px_200px] animate-loop-open"
+              : "origin-[200px_200px] animate-loop-turn motion-reduce:animate-none"
+          }
         >
-          {paperBallFacets().map((facet) => (
-            <polygon key={facet.points} points={facet.points} fill={facet.fill} />
+          {ROTATIONS.map((rotation) => (
+            <g key={rotation} transform={`rotate(${rotation} 200 200)`}>
+              <path
+                d={ARM.ribbon}
+                fill="none"
+                stroke={CASING}
+                strokeWidth={38}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              <polygon
+                points={ARM.head}
+                fill={CASING}
+                stroke={CASING}
+                strokeWidth={12}
+                strokeLinejoin="round"
+              />
+              <path
+                d={ARM.ribbon}
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={26}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              <polygon points={ARM.head} fill="currentColor" />
+            </g>
           ))}
         </g>
-      </g>
-    </svg>
+
+        {/*
+          Two nested groups, not one. The outer positions the ball with an SVG
+          `transform` attribute; the inner carries the CSS animation. A CSS
+          transform overrides the attribute rather than composing with it, so
+          animating the positioned group directly threw the ball to the viewBox
+          origin — which is what the first attempt did.
+        */}
+        <g transform="translate(200 200)">
+          <g
+            className={
+              unfolding
+                ? "origin-center animate-ball-unfold"
+                : "origin-center animate-paper-bob motion-reduce:animate-none"
+            }
+            stroke={CREASE}
+            strokeWidth={0.6}
+            strokeLinejoin="round"
+          >
+            {/*
+              The open middle. The pyramid nearest the viewer is left out of
+              the geometry, so these two polygons are the hollow inside showing
+              through — and they are the affordance, the thing that suggests
+              the paper can be opened.
+            */}
+            <polygon points={BALL.opening.points} fill="#6b6555" />
+            <polygon points={BALL.opening.innerPoints} fill="#3d3931" />
+            {BALL.facets.map((facet) => (
+              <polygon key={facet.points} points={facet.points} fill={facet.fill} />
+            ))}
+          </g>
+        </g>
+      </svg>
+
+      {/*
+        A control nobody can tell is a control is decoration. The hero already
+        has two buttons, so this one says what it does — quietly, and it is the
+        only text in the graphic.
+      */}
+      <span className="mt-1 block text-center text-sm text-gray-500 transition-colors group-hover:text-brand-700">
+        Unfold to sign in
+      </span>
+    </button>
   );
 }
