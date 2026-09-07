@@ -1,25 +1,42 @@
-// The geometry of the folded-paper ball in the landing page hero.
+// The geometry of the star-folded paper ball in the landing page hero.
 //
-// A kusudama — a sphere folded from flat triangular panels — is a level-1
-// geodesic sphere: an icosahedron with every face split into four. This builds
-// one, turns it away from the viewer's axis, projects it flat, discards the
-// faces pointing away, and shades each remaining face by how squarely it meets
-// the light. It reads as folded paper because that is what it is: flat panels
-// meeting at angles.
+// The reference is a kusudama star ball: paper modules folded so that each
+// face of an icosahedron carries a raised pyramid, and five pyramids meet at
+// every vertex to form a star rosette. So this is a stellated icosahedron —
+// twenty pyramids, three visible sides each — not a sphere with flat facets.
 //
-// A pure function rather than 39 literal polygons pasted into the component.
-// The first version of this was a build script whose output was copied in by
-// hand, which meant the component held forty lines of arbitrary-looking
-// decimals that nothing could verify and any edit would silently desynchronise
-// from the script. Running the arithmetic is free — the page is static, so it
-// happens once at build time.
+// An earlier version modelled a plain geodesic sphere. It read as a low-poly
+// ball rather than folded paper, because a sphere's panels all tilt the same
+// way and nothing casts a point. The spikes are what make it a star.
+//
+// The ball is open at the front: the pyramid nearest the viewer is left out,
+// exposing the hollow inside. That opening is the affordance for unfolding it
+// — see RecycleBall.tsx.
+//
+// A pure function rather than literal polygons. Running the arithmetic is
+// free, since the page is static and this happens once at build time.
 
 const PHI = (1 + Math.sqrt(5)) / 2;
 
-/** Radius in user units, measured in the SVG's own coordinate space. */
-export const BALL_RADIUS = 70;
+/** Radius of the icosahedron's vertices, in the SVG's own units. */
+export const BALL_RADIUS = 50;
 
-// Off-axis on both axes. A vertex pointed straight at the viewer produces a
+/**
+ * How far each pyramid's apex sits beyond the sphere, as a multiple of the
+ * radius. Below about 1.15 the ball looks merely bumpy; above about 1.6 the
+ * spikes go needly and the paper reads as plastic.
+ *
+ * BALL_RADIUS * SPIKE is the real outer extent, and it has to stay under the
+ * arrow triangle's inradius of 75 or the points push through the arrows. That
+ * product is the constraint, which is why raising the spike meant lowering
+ * the radius rather than both going up.
+ */
+const SPIKE = 1.45;
+
+/** The furthest any point reaches from the centre. */
+export const OUTER_RADIUS = BALL_RADIUS * SPIKE;
+
+// Off-axis on both axes. A vertex pointed straight at the viewer gives a
 // symmetric rosette that reads as a flat pattern rather than an object.
 const ROTATE_X = 0.42;
 const ROTATE_Y = 0.62;
@@ -27,13 +44,14 @@ const ROTATE_Y = 0.62;
 // Upper-left, matching the way the reference photograph is lit.
 const LIGHT = normalise([-0.45, 0.72, 0.65]);
 
-// Paper, not plastic. A wider band reads as a cut gemstone; a narrower one and
-// the folds melt into a smooth gradient.
-const SHADOW = [0xc4, 0xbf, 0xb2] as const;
+// Paper, not plastic. The band is wider than a sphere's would need to be,
+// because a stellated solid genuinely has faces turned right away from the
+// light and flattening them loses the spikes.
+const SHADOW = [0x8f, 0x88, 0x77] as const;
 const HIGHLIGHT = [0xff, 0xfe, 0xfa] as const;
 
-/** The colour of a fold. Without it the facets blur into one another. */
-export const CREASE = '#b9b4a6';
+/** The colour of a fold. Without it adjacent panels blur together. */
+export const CREASE = '#9c9686';
 
 type Vec3 = readonly [number, number, number];
 
@@ -43,13 +61,52 @@ export interface Facet {
   readonly fill: string;
 }
 
+export interface Opening {
+  /** `points` for the hole itself — the base of the pyramid taken out. */
+  readonly points: string;
+  /** A smaller polygon inside it, to read as depth rather than a flat patch. */
+  readonly innerPoints: string;
+}
+
+export interface PaperBall {
+  readonly facets: readonly Facet[];
+  /** Where the missing front pyramid leaves the ball hollow. */
+  readonly opening: Opening;
+}
+
 function normalise([x, y, z]: Vec3): Vec3 {
   const length = Math.hypot(x, y, z);
   return [x / length, y / length, z / length];
 }
 
-function midpoint(a: Vec3, b: Vec3): Vec3 {
-  return normalise([(a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2]);
+function scale([x, y, z]: Vec3, k: number): Vec3 {
+  return [x * k, y * k, z * k];
+}
+
+function centroid(face: readonly Vec3[]): Vec3 {
+  return [
+    face.reduce((s, v) => s + v[0], 0) / face.length,
+    face.reduce((s, v) => s + v[1], 0) / face.length,
+    face.reduce((s, v) => s + v[2], 0) / face.length,
+  ];
+}
+
+/**
+ * True surface normal, by cross product.
+ *
+ * A sphere lets you cheat and use the centroid direction, which is what the
+ * geodesic version did. A pyramid's sides tilt away from the centroid, so
+ * cheating here would light every side of a spike identically and the spike
+ * would vanish.
+ */
+function faceNormal([a, b, c]: readonly Vec3[]): Vec3 {
+  const u: Vec3 = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
+  const v: Vec3 = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];
+  return normalise([
+    u[1] * v[2] - u[2] * v[1],
+    u[2] * v[0] - u[0] * v[2],
+    u[0] * v[1] - u[1] * v[0],
+  ]);
 }
 
 function rotate([x, y, z]: Vec3): Vec3 {
@@ -62,7 +119,7 @@ function rotate([x, y, z]: Vec3): Vec3 {
   ];
 }
 
-const ICOSAHEDRON_VERTICES: readonly Vec3[] = (
+const VERTICES: readonly Vec3[] = (
   [
     [-1, PHI, 0], [1, PHI, 0], [-1, -PHI, 0], [1, -PHI, 0],
     [0, -1, PHI], [0, 1, PHI], [0, -1, -PHI], [0, 1, -PHI],
@@ -70,7 +127,7 @@ const ICOSAHEDRON_VERTICES: readonly Vec3[] = (
   ] as Vec3[]
 ).map(normalise);
 
-const ICOSAHEDRON_FACES: readonly (readonly [number, number, number])[] = [
+const FACES: readonly (readonly [number, number, number])[] = [
   [0, 11, 5], [0, 5, 1], [0, 1, 7], [0, 7, 10], [0, 10, 11],
   [1, 5, 9], [5, 11, 4], [11, 10, 2], [10, 7, 6], [7, 1, 8],
   [3, 9, 4], [3, 4, 2], [3, 2, 6], [3, 6, 8], [3, 8, 9],
@@ -86,50 +143,67 @@ const channel = (index: 0 | 1 | 2, level: number) =>
 
 const fill = (level: number) => `#${channel(0, level)}${channel(1, level)}${channel(2, level)}`;
 
-/**
- * The facets facing the viewer, back to front.
- *
- * Sorted by depth so nearer panels paint over farther ones — SVG has no
- * z-buffer, so document order *is* the depth order.
- */
-export function paperBallFacets(): Facet[] {
-  const subdivided: Vec3[][] = [];
-  for (const [a, b, c] of ICOSAHEDRON_FACES) {
-    const va = ICOSAHEDRON_VERTICES[a];
-    const vb = ICOSAHEDRON_VERTICES[b];
-    const vc = ICOSAHEDRON_VERTICES[c];
-    const ab = midpoint(va, vb);
-    const bc = midpoint(vb, vc);
-    const ca = midpoint(vc, va);
-    subdivided.push([va, ab, ca], [ab, vb, bc], [ca, bc, vc], [ab, bc, ca]);
-  }
+const project = ([x, y]: Vec3) => [round(x * BALL_RADIUS), round(-y * BALL_RADIUS)] as const;
 
-  return subdivided
-    .map((face) => face.map(rotate) as Vec3[])
-    .map((face) => {
-      // For a face of a sphere centred on the origin the centroid direction is
-      // close enough to the surface normal, and cheaper than a cross product.
-      const normal = normalise([
-        (face[0][0] + face[1][0] + face[2][0]) / 3,
-        (face[0][1] + face[1][1] + face[2][1]) / 3,
-        (face[0][2] + face[1][2] + face[2][2]) / 3,
-      ]);
+/** One side of one pyramid. */
+interface Side {
+  readonly tri: readonly Vec3[];
+  readonly depth: number;
+  readonly lambert: number;
+}
+
+export function paperBall(): PaperBall {
+  // Build every pyramid in view space, keeping them grouped so the front one
+  // can be dropped whole. Dropping loose triangles would leave a ragged notch
+  // rather than an opening.
+  const pyramids = FACES.map(([a, b, c]) => {
+    const base = [VERTICES[a], VERTICES[b], VERTICES[c]].map(rotate) as Vec3[];
+    const apex = scale(normalise(centroid(base)), SPIKE);
+    const sides: Side[] = [0, 1, 2].map((i) => {
+      const tri = [base[i], base[(i + 1) % 3], apex];
       return {
-        face,
-        normal,
-        depth: (face[0][2] + face[1][2] + face[2][2]) / 3,
-        lambert: Math.max(0, normal[0] * LIGHT[0] + normal[1] * LIGHT[1] + normal[2] * LIGHT[2]),
+        tri,
+        depth: centroid(tri)[2],
+        lambert: (() => {
+          const n = faceNormal(tri);
+          return Math.max(0, n[0] * LIGHT[0] + n[1] * LIGHT[1] + n[2] * LIGHT[2]);
+        })(),
       };
-    })
-    .filter(({ normal }) => normal[2] > 0.02)
+    });
+    return { apex, base, sides };
+  });
+
+  // The pyramid pointing most directly at the viewer becomes the opening.
+  const front = pyramids.reduce((best, p) => (p.apex[2] > best.apex[2] ? p : best));
+
+  const facets = pyramids
+    .filter((p) => p !== front)
+    .flatMap((p) => p.sides)
+    // Cull sides facing away. Per-side, not per-pyramid: on a pyramid at the
+    // ball's edge one side faces the viewer while another faces away.
+    .filter((side) => faceNormal(side.tri)[2] > 0)
+    // SVG has no z-buffer, so document order is paint order.
     .sort((a, b) => a.depth - b.depth)
-    .map(({ face, lambert }) => ({
-      // SVG's y axis points down, so the projected y is negated.
-      points: face
-        .map(([x, y]) => `${round(x * BALL_RADIUS)},${round(-y * BALL_RADIUS)}`)
-        .join(' '),
-      // Gamma below 1 lifts the midtones. Without it most facets crush to the
+    .map((side) => ({
+      points: side.tri.map(project).map(([x, y]) => `${x},${y}`).join(' '),
+      // Gamma below 1 lifts the midtones; without it most sides crush to the
       // shadow end and the ball looks grubby rather than folded.
-      fill: fill(Math.pow(lambert, 0.85)),
+      fill: fill(Math.pow(side.lambert, 0.8)),
     }));
+
+  // The hole is the exact triangle the removed pyramid stood on, not a circle
+  // approximating it — a circle left a visible mismatch against the straight
+  // edges of the panels around it.
+  const middle = centroid(front.base);
+  const toPoints = (shrink: number) =>
+    front.base
+      .map((v) => project([
+        middle[0] + (v[0] - middle[0]) * shrink,
+        middle[1] + (v[1] - middle[1]) * shrink,
+        middle[2] + (v[2] - middle[2]) * shrink,
+      ] as Vec3))
+      .map(([x, y]) => `${x},${y}`)
+      .join(' ');
+
+  return { facets, opening: { points: toPoints(1), innerPoints: toPoints(0.55) } };
 }
