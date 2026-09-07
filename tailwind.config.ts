@@ -98,22 +98,43 @@ const config: Config = {
   		// tag so the `motion-reduce:animate-none` variant can switch them off,
   		// which an inline keyframe cannot.
   		//
-  		// `dash-travel` shifts the dash pattern along each arrow so the arrows
-  		// appear to chase each other round the triangle. The distance must
-  		// equal one dash period (22 + 13) times a whole number, or the pattern
-  		// visibly jumps when the animation loops — 70 is two periods.
+  		// `loop-turn` rotates the whole mark. The arrows are three-fold
+  		// symmetric, so 120° is a complete cycle and it repeats seamlessly —
+  		// the earlier version travelled a dash pattern along each arm, which
+  		// is what made the arrows dotted.
+  		//
+  		// The `-open` and `-unfold` pair run once, when the ball is pressed:
+  		// the paper opens toward the viewer and the loop releases it, and the
+  		// sign-in card takes its place. `forwards` matters — without it both
+  		// snap back to their starting frame just before the card appears.
   		keyframes: {
-  			'dash-travel': {
-  				to: { strokeDashoffset: '-70' },
+  			'loop-turn': {
+  				to: { transform: 'rotate(120deg)' },
   			},
   			'paper-bob': {
   				'0%, 100%': { transform: 'translateY(0)' },
   				'50%': { transform: 'translateY(-9px)' },
   			},
+  			'ball-unfold': {
+  				'0%': { transform: 'scale(1) rotate(0deg)', opacity: '1' },
+  				'100%': { transform: 'scale(7) rotate(-25deg)', opacity: '0' },
+  			},
+  			'loop-open': {
+  				'0%': { transform: 'scale(1)', opacity: '1' },
+  				'100%': { transform: 'scale(1.7)', opacity: '0' },
+  			},
+  			// The sign-in card arriving where the paper was.
+  			'card-open': {
+  				'0%': { transform: 'scale(0.94)', opacity: '0' },
+  				'100%': { transform: 'scale(1)', opacity: '1' },
+  			},
   		},
   		animation: {
-  			'dash-travel': 'dash-travel 2.6s linear infinite',
+  			'loop-turn': 'loop-turn 14s linear infinite',
   			'paper-bob': 'paper-bob 9s ease-in-out infinite',
+  			'ball-unfold': 'ball-unfold 520ms cubic-bezier(0.4, 0, 0.9, 0.3) forwards',
+  			'loop-open': 'loop-open 520ms ease-out forwards',
+  			'card-open': 'card-open 260ms ease-out',
   		}
   	}
   },
