@@ -25,12 +25,12 @@ export default async function MyReportsPage() {
     <div className="mx-auto max-w-3xl">
       <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold text-gray-900">My reports</h1>
-          <p className="mt-1 text-gray-600">Everything you&apos;ve reported, and where it got to.</p>
+          <h1 className="font-display text-display-sm font-extrabold text-ink-900">My reports</h1>
+          <p className="mt-1 text-ink-700/70">Everything you&apos;ve reported, and where it got to.</p>
         </div>
         <Link
           href="/report"
-          className="rounded-lg bg-green-600 px-4 py-2 text-white hover:bg-green-700"
+          className="rounded-lg bg-brand-700 px-4 py-2 text-white hover:bg-brand-800"
         >
           New report
         </Link>
