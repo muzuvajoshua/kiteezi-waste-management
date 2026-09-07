@@ -12,8 +12,8 @@ export const metadata: Metadata = {
 export default function ReportPage() {
   return (
     <div className="mx-auto max-w-3xl">
-      <h1 className="text-2xl font-semibold text-gray-900">Report waste</h1>
-      <p className="mt-1 mb-6 text-gray-600">
+      <h1 className="font-display text-display-sm font-extrabold text-ink-900">Report waste</h1>
+      <p className="mt-1 mb-6 text-ink-700/70">
         Tell us where the waste is and we&apos;ll get a collector to it. You earn 10 points for
         every report.
       </p>
