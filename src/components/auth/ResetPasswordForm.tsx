@@ -47,7 +47,7 @@ export function ResetPasswordForm({ token }: { token: string }) {
     // To sign-in rather than straight in: the link proves control of the
     // mailbox, not that they remember the password they just chose. Using it
     // once confirms it is what they think it is.
-    router.push("/sign-in");
+    router.push("/#sign-in");
   };
 
   if (!token) {
