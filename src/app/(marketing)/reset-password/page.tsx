@@ -23,8 +23,8 @@ export default async function ResetPasswordPage({
 
   return (
     <div className="mx-auto flex max-w-md flex-col items-center py-8">
-      <h1 className="text-2xl font-semibold text-gray-900">Set a new password</h1>
-      <p className="mb-6 mt-1 text-center text-gray-600">
+      <h1 className="font-display text-display-sm font-extrabold text-ink-900">Set a new password</h1>
+      <p className="mb-6 mt-1 text-center text-ink-700/70">
         Choose a password you don&apos;t use anywhere else.
       </p>
       <ResetPasswordForm token={value} />

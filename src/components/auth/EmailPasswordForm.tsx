@@ -25,7 +25,7 @@ export interface AuthenticatedUser {
 }
 
 const FIELD_CLASS =
-  "w-full rounded-lg border border-gray-300 px-3 py-2 text-gray-900 focus:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-500";
+  "w-full rounded-lg border border-cream-400 px-3 py-2 text-ink-900 focus:border-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-700";
 
 export function EmailPasswordForm({
   onAuthenticated,
@@ -79,8 +79,8 @@ export function EmailPasswordForm({
     <form onSubmit={handleSubmit} className="w-full max-w-sm space-y-4">
       {isRegistering && (
         <div>
-          <label htmlFor="name" className="mb-1 block text-sm font-medium text-gray-700">
-            Your name <span className="text-gray-400">(optional)</span>
+          <label htmlFor="name" className="mb-1 block text-sm font-medium text-ink-800">
+            Your name <span className="text-ink-700/40">(optional)</span>
           </label>
           <input
             id="name"
@@ -96,7 +96,7 @@ export function EmailPasswordForm({
       )}
 
       <div>
-        <label htmlFor="email" className="mb-1 block text-sm font-medium text-gray-700">
+        <label htmlFor="email" className="mb-1 block text-sm font-medium text-ink-800">
           Email address
         </label>
         <input
@@ -113,7 +113,7 @@ export function EmailPasswordForm({
       </div>
 
       <div>
-        <label htmlFor="password" className="mb-1 block text-sm font-medium text-gray-700">
+        <label htmlFor="password" className="mb-1 block text-sm font-medium text-ink-800">
           Password
         </label>
         <input
@@ -144,7 +144,7 @@ export function EmailPasswordForm({
       <Button
         type="submit"
         disabled={isSubmitting}
-        className="w-full bg-green-600 py-2 text-white hover:bg-green-700 disabled:opacity-50"
+        className="w-full bg-brand-700 py-2 text-white hover:bg-brand-800 disabled:opacity-50"
       >
         {isSubmitting
           ? isRegistering
@@ -157,18 +157,18 @@ export function EmailPasswordForm({
 
       {!isRegistering && (
         <p className="text-center text-sm">
-          <Link href="/forgot-password" className="text-green-700 underline hover:text-green-800">
+          <Link href="/forgot-password" className="text-brand-700 underline hover:text-green-800">
             Forgot your password?
           </Link>
         </p>
       )}
 
-      <p className="text-center text-sm text-gray-600">
+      <p className="text-center text-sm text-ink-700/70">
         {isRegistering ? "Already have an account?" : "No account yet?"}{" "}
         <button
           type="button"
           onClick={switchMode}
-          className="font-medium text-green-700 underline hover:text-green-800"
+          className="font-medium text-brand-700 underline hover:text-green-800"
         >
           {isRegistering ? "Sign in instead" : "Create one"}
         </button>

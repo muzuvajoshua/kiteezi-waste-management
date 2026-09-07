@@ -147,7 +147,7 @@ export function SupervisorInboxView({ result, onReview }: SupervisorInboxViewPro
 
   if (!result.ok) {
     return (
-      <div role="alert" className="flex items-start gap-3 rounded-lg bg-red-50 p-4 text-red-800">
+      <div role="alert" className="flex items-start gap-3 rounded-card bg-rose-50 p-4 text-rose-900">
         <AlertCircle className="mt-0.5 h-5 w-5 shrink-0" />
         <div>
           <p className="font-medium">Could not load the review queue</p>
@@ -159,9 +159,9 @@ export function SupervisorInboxView({ result, onReview }: SupervisorInboxViewPro
 
   if (reports.length === 0) {
     return (
-      <div className="rounded-lg border border-dashed border-gray-300 p-8 text-center">
-        <CheckCircle2 className="mx-auto h-8 w-8 text-green-500" />
-        <p className="mt-3 text-gray-700">Nothing pending. The queue is clear.</p>
+      <div className="rounded-card border border-dashed border-cream-400 p-8 text-center">
+        <CheckCircle2 className="mx-auto h-8 w-8 text-brand-600" />
+        <p className="mt-3 text-ink-800">Nothing pending. The queue is clear.</p>
       </div>
     );
   }
@@ -173,14 +173,14 @@ export function SupervisorInboxView({ result, onReview }: SupervisorInboxViewPro
     <div className="space-y-4">
       <div className="flex flex-wrap items-end gap-3">
         <div>
-          <label htmlFor="wasteTypeFilter" className="block text-sm text-gray-600">
+          <label htmlFor="wasteTypeFilter" className="block text-sm text-ink-700/70">
             Waste type
           </label>
           <select
             id="wasteTypeFilter"
             value={wasteType}
             onChange={(event) => setWasteType(event.target.value as WasteType | "all")}
-            className="mt-1 rounded-lg border border-gray-300 px-2 py-1.5 text-sm text-gray-900"
+            className="mt-1 rounded-lg border border-cream-400 px-2 py-1.5 text-sm text-ink-900"
           >
             <option value="all">All</option>
             {WASTE_TYPES.map((type) => (
@@ -192,7 +192,7 @@ export function SupervisorInboxView({ result, onReview }: SupervisorInboxViewPro
         </div>
 
         <div className="min-w-[12rem] flex-1">
-          <label htmlFor="locationFilter" className="block text-sm text-gray-600">
+          <label htmlFor="locationFilter" className="block text-sm text-ink-700/70">
             Location contains
           </label>
           <input
@@ -201,14 +201,14 @@ export function SupervisorInboxView({ result, onReview }: SupervisorInboxViewPro
             value={location}
             onChange={(event) => setLocation(event.target.value)}
             placeholder="e.g. Bwaise"
-            className="mt-1 w-full rounded-lg border border-gray-300 px-2 py-1.5 text-sm text-gray-900"
+            className="mt-1 w-full rounded-lg border border-cream-400 px-2 py-1.5 text-sm text-ink-900"
           />
         </div>
       </div>
 
-      <div className="rounded-lg border border-gray-200 bg-white">
-        <div className="flex flex-wrap items-center gap-3 border-b border-gray-200 p-3">
-          <label className="flex items-center gap-2 text-sm text-gray-700">
+      <div className="rounded-card border border-cream-300 bg-white">
+        <div className="flex flex-wrap items-center gap-3 border-b border-cream-300 p-3">
+          <label className="flex items-center gap-2 text-sm text-ink-800">
             <input
               type="checkbox"
               aria-label="Select all"
@@ -219,11 +219,11 @@ export function SupervisorInboxView({ result, onReview }: SupervisorInboxViewPro
             />
             Select all
           </label>
-          <p className="text-sm text-gray-600">{effectiveIds.length} selected</p>
+          <p className="text-sm text-ink-700/70">{effectiveIds.length} selected</p>
         </div>
 
         {visible.length === 0 ? (
-          <p className="p-6 text-center text-gray-600">No pending reports match those filters.</p>
+          <p className="p-6 text-center text-ink-700/70">No pending reports match those filters.</p>
         ) : (
           <ul className="divide-y divide-gray-100">
             {visible.map((report) => (
@@ -236,11 +236,11 @@ export function SupervisorInboxView({ result, onReview }: SupervisorInboxViewPro
                   className="h-4 w-4 shrink-0"
                 />
                 <div className="min-w-0">
-                  <p className="flex items-center gap-1.5 font-medium text-gray-900">
-                    <MapPin className="h-4 w-4 shrink-0 text-gray-400" />
+                  <p className="flex items-center gap-1.5 font-medium text-ink-900">
+                    <MapPin className="h-4 w-4 shrink-0 text-ink-700/40" />
                     <span className="truncate">{report.location}</span>
                   </p>
-                  <p className="mt-0.5 text-sm text-gray-600">
+                  <p className="mt-0.5 text-sm text-ink-700/70">
                     {report.wasteType} · {report.amount} kg · {formatDate(report.createdAt)}
                   </p>
                 </div>
@@ -250,10 +250,10 @@ export function SupervisorInboxView({ result, onReview }: SupervisorInboxViewPro
         )}
       </div>
 
-      <div className="space-y-3 rounded-lg border border-gray-200 bg-gray-50 p-3">
+      <div className="space-y-3 rounded-card border border-cream-300 bg-cream-200 p-3">
         <div>
-          <label htmlFor="reviewReason" className="block text-sm text-gray-600">
-            Reason <span className="text-gray-400">(required to reject — the reporter sees it)</span>
+          <label htmlFor="reviewReason" className="block text-sm text-ink-700/70">
+            Reason <span className="text-ink-700/40">(required to reject — the reporter sees it)</span>
           </label>
           <textarea
             id="reviewReason"
@@ -261,7 +261,7 @@ export function SupervisorInboxView({ result, onReview }: SupervisorInboxViewPro
             onChange={(event) => setReason(event.target.value)}
             rows={2}
             maxLength={1000}
-            className="mt-1 w-full rounded-lg border border-gray-300 px-2 py-1.5 text-sm text-gray-900"
+            className="mt-1 w-full rounded-lg border border-cream-400 px-2 py-1.5 text-sm text-ink-900"
           />
         </div>
 
@@ -270,7 +270,7 @@ export function SupervisorInboxView({ result, onReview }: SupervisorInboxViewPro
             type="button"
             onClick={() => review("approved")}
             disabled={submitting || effectiveIds.length === 0}
-            className="rounded-lg bg-green-600 px-4 py-2 text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
+            className="rounded-lg bg-brand-700 px-4 py-2 text-white hover:bg-brand-800 disabled:cursor-not-allowed disabled:opacity-50"
           >
             Approve
           </button>
@@ -278,7 +278,7 @@ export function SupervisorInboxView({ result, onReview }: SupervisorInboxViewPro
             type="button"
             onClick={() => review("rejected")}
             disabled={submitting || effectiveIds.length === 0}
-            className="rounded-lg bg-red-600 px-4 py-2 text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+            className="rounded-lg bg-rose-700 px-4 py-2 text-white hover:bg-rose-800 disabled:cursor-not-allowed disabled:opacity-50"
           >
             Reject
           </button>
@@ -286,14 +286,14 @@ export function SupervisorInboxView({ result, onReview }: SupervisorInboxViewPro
       </div>
 
       {error !== null && (
-        <div role="alert" className="flex items-start gap-3 rounded-lg bg-red-50 p-4 text-red-800">
+        <div role="alert" className="flex items-start gap-3 rounded-card bg-rose-50 p-4 text-rose-900">
           <AlertCircle className="mt-0.5 h-5 w-5 shrink-0" />
           <p className="text-sm">{error}</p>
         </div>
       )}
 
       {outcome !== null && (
-        <p role="status" className="rounded-lg bg-green-50 p-4 text-sm text-green-800">
+        <p role="status" className="rounded-full bg-brand-50 p-4 text-sm text-green-800">
           {outcome}
         </p>
       )}

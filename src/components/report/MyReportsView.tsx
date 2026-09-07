@@ -24,12 +24,12 @@ import type { Report, ReportStatus } from "@/modules/reports/domain/report";
 // it must move server-side when pagination lands.
 
 const STATUS_STYLES: Record<ReportStatus, string> = {
-  pending: "bg-amber-100 text-amber-800",
-  approved: "bg-blue-100 text-blue-800",
-  in_progress: "bg-indigo-100 text-indigo-800",
-  collected: "bg-teal-100 text-teal-800",
-  verified: "bg-green-100 text-green-800",
-  rejected: "bg-red-100 text-red-800",
+  pending: "bg-amber-100 text-amber-900",
+  approved: "bg-sky-100 text-sky-900",
+  in_progress: "bg-indigo-100 text-indigo-900",
+  collected: "bg-teal-100 text-teal-900",
+  verified: "bg-brand-100 text-brand-900",
+  rejected: "bg-rose-100 text-rose-900",
 };
 
 function formatStatus(status: ReportStatus): string {
@@ -70,7 +70,7 @@ export function MyReportsView({ result }: { result: Result<Report[], AppError> }
     return (
       <div
         role="alert"
-        className="flex items-start gap-3 rounded-lg bg-red-50 p-4 text-red-800"
+        className="flex items-start gap-3 rounded-card bg-rose-50 p-4 text-rose-900"
       >
         <AlertCircle className="mt-0.5 h-5 w-5 shrink-0" />
         <div>
@@ -83,12 +83,12 @@ export function MyReportsView({ result }: { result: Result<Report[], AppError> }
 
   if (sorted.length === 0) {
     return (
-      <div className="rounded-lg border border-dashed border-gray-300 p-8 text-center">
-        <Inbox className="mx-auto h-8 w-8 text-gray-400" />
-        <p className="mt-3 text-gray-700">You haven&apos;t submitted any reports yet.</p>
+      <div className="rounded-card border border-dashed border-cream-400 p-8 text-center">
+        <Inbox className="mx-auto h-8 w-8 text-ink-700/40" />
+        <p className="mt-3 text-ink-800">You haven&apos;t submitted any reports yet.</p>
         <Link
           href="/report"
-          className="mt-4 inline-block rounded-lg bg-green-600 px-4 py-2 text-white hover:bg-green-700"
+          className="mt-4 inline-block rounded-lg bg-brand-700 px-4 py-2 text-white hover:bg-brand-800"
         >
           Report waste
         </Link>
@@ -99,19 +99,19 @@ export function MyReportsView({ result }: { result: Result<Report[], AppError> }
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-sm text-gray-600">
+        <p className="text-sm text-ink-700/70">
           {sorted.length} {sorted.length === 1 ? "report" : "reports"}
         </p>
 
         <div className="flex items-center gap-2">
-          <label htmlFor="statusFilter" className="text-sm text-gray-600">
+          <label htmlFor="statusFilter" className="text-sm text-ink-700/70">
             Filter by status
           </label>
           <select
             id="statusFilter"
             value={statusFilter}
             onChange={(event) => setStatusFilter(event.target.value as ReportStatus | "all")}
-            className="rounded-lg border border-gray-300 px-2 py-1 text-sm text-gray-900"
+            className="rounded-lg border border-cream-400 px-2 py-1 text-sm text-ink-900"
           >
             <option value="all">All</option>
             {REPORT_STATUSES.map((status) => (
@@ -124,7 +124,7 @@ export function MyReportsView({ result }: { result: Result<Report[], AppError> }
       </div>
 
       {visible.length === 0 ? (
-        <p className="rounded-lg bg-gray-50 p-6 text-center text-gray-600">
+        <p className="rounded-lg bg-cream-200 p-6 text-center text-ink-700/70">
           No reports with that status.
         </p>
       ) : (
@@ -132,14 +132,14 @@ export function MyReportsView({ result }: { result: Result<Report[], AppError> }
           {visible.map((report) => (
             <li
               key={report.id}
-              className="flex flex-col gap-2 rounded-lg border border-gray-200 bg-white p-4 sm:flex-row sm:items-center sm:justify-between"
+              className="flex flex-col gap-2 rounded-card border border-cream-300 bg-white p-4 sm:flex-row sm:items-center sm:justify-between"
             >
               <div className="min-w-0">
-                <p className="flex items-center gap-1.5 font-medium text-gray-900">
-                  <MapPin className="h-4 w-4 shrink-0 text-gray-400" />
+                <p className="flex items-center gap-1.5 font-medium text-ink-900">
+                  <MapPin className="h-4 w-4 shrink-0 text-ink-700/40" />
                   <span className="truncate">{report.location}</span>
                 </p>
-                <p className="mt-1 text-sm text-gray-600">
+                <p className="mt-1 text-sm text-ink-700/70">
                   {report.wasteType} · {report.amount} kg · {formatDate(report.createdAt)}
                 </p>
                 {/*
@@ -149,7 +149,7 @@ export function MyReportsView({ result }: { result: Result<Report[], AppError> }
                   the column exists to solve.
                 */}
                 {report.reviewReason !== null && (
-                  <p className="mt-1.5 text-sm text-gray-700">
+                  <p className="mt-1.5 text-sm text-ink-800">
                     <span className="font-medium">
                       {report.status === "rejected" ? "Why it was rejected:" : "Reviewer note:"}
                     </span>{" "}

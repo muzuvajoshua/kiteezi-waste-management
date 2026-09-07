@@ -1,74 +1,65 @@
-import Link from "next/link"
-import { usePathname } from 'next/navigation'
-import { Button } from "@/components/ui/button"
-import { MapPin, Trash, Coins, Medal, Settings, Home, ListChecks, ClipboardCheck } from "lucide-react"
+"use client";
 
-// /report and /my-reports exist as of KWM-025/KWM-027, /supervisor/inbox as of
-// KWM-032. The remaining entries still 404 — they are the original C-10
-// finding and are tracked by their own issues (KWM-030 /collect, KWM-033
-// /rewards, and the leaderboard/settings pages). Left in place rather than
-// removed so the intended shape of the app stays visible; each disappears
-// from this list as its page lands.
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { ClipboardCheck, ListChecks, MapPin } from "lucide-react";
+
+// The signed-in navigation.
 //
-// The review queue is listed for everyone, which is wrong but not unsafe: the
-// page's own action refuses anyone without a supervisor or admin role, so a
-// citizen following the link is told they lack permission rather than shown
-// the queue. Hiding it needs the sidebar to know the session's roles, and this
-// is a server-rendered list inside a client component with no session access —
-// a real change, not a one-liner, so it is deliberately not smuggled in here.
-const sidebarItems = [
-  { href: "/", icon: Home, label: "Home" },
-  { href: "/report", icon: MapPin, label: "Report Waste" },
-  { href: "/my-reports", icon: ListChecks, label: "My Reports" },
-  { href: "/supervisor/inbox", icon: ClipboardCheck, label: "Review Queue" },
-  { href: "/collect", icon: Trash, label: "Collect Waste" },
-  { href: "/rewards", icon: Coins, label: "Rewards" },
-  { href: "/leaderboard", icon: Medal, label: "Leaderboard" },
-]
+// Only pages that exist. This list used to carry /collect, /rewards,
+// /leaderboard and /settings — four links to nothing, kept "so the intended
+// shape of the app stays visible". That is a reasonable thing to want and a
+// bad way to get it: every one of them was a dead end a signed-in user could
+// click, and the roadmap is not something a navigation bar should be used to
+// document. They come back as each page lands.
+//
+// The review queue is listed for everyone, which is wrong but not unsafe:
+// getPendingReports refuses anyone without a supervisor or admin role, so a
+// resident following the link is told they lack permission rather than shown
+// the queue. Hiding it needs this component to know the session's roles, and
+// it is a client component with no session access.
+const ITEMS = [
+  { href: "/report", icon: MapPin, label: "Report waste" },
+  { href: "/my-reports", icon: ListChecks, label: "My reports" },
+  { href: "/supervisor/inbox", icon: ClipboardCheck, label: "Review queue" },
+] as const;
 
-interface SidebarProps {
-  open: boolean
-}
-
-export default function Sidebar({ open }: SidebarProps) {
-  const pathname = usePathname()
+export default function Sidebar({ open }: { open: boolean }) {
+  const pathname = usePathname();
 
   return (
-    <aside className={`bg-white border-r pt-20 border-gray-200 text-gray-800 w-64 fixed inset-y-0 left-0 z-30 transform transition-transform duration-300 ease-in-out ${open ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0`}>
-      <nav className="h-full flex flex-col justify-between">
-        <div className="px-4 py-6 space-y-8">
-          {sidebarItems.map((item) => (
-            <Link key={item.href} href={item.href} passHref>
-              <Button 
-                variant={pathname === item.href ? "secondary" : "ghost"}
-                className={`w-full justify-start py-3 ${
-                  pathname === item.href 
-                    ? "bg-green-100 text-green-800" 
-                    : "text-gray-600 hover:bg-gray-100"
-                }`} 
-              >
-                <item.icon className="mr-3 h-5 w-5" />
-                <span className="text-base">{item.label}</span>
-              </Button>
-            </Link>
-          ))}
-        </div>
-        <div className="p-4 border-t border-gray-200">
-          <Link href="/settings" passHref>
-            <Button 
-              variant={pathname === "/settings" ? "secondary" : "outline"}
-              className={`w-full py-3 ${
-                pathname === "/settings"
-                  ? "bg-green-100 text-green-800"
-                  : "text-gray-600 border-gray-300 hover:bg-gray-100"
-              }`} 
-            >
-              <Settings className="mr-3 h-5 w-5" />
-              <span className="text-base">Settings</span>
-            </Button>
-          </Link>
-        </div>
+    <aside
+      className={`fixed inset-y-0 left-0 z-30 w-64 transform border-r border-cream-300 bg-white pt-20 transition-transform duration-300 ease-in-out lg:translate-x-0 ${
+        open ? "translate-x-0" : "-translate-x-full"
+      }`}
+    >
+      <nav className="flex h-full flex-col px-3 py-6">
+        <ul className="space-y-1">
+          {ITEMS.map((item) => {
+            const active = pathname === item.href;
+            return (
+              <li key={item.href}>
+                <Link
+                  href={item.href}
+                  aria-current={active ? "page" : undefined}
+                  className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors outline-none focus-visible:ring-2 focus-visible:ring-brand-700 ${
+                    active
+                      ? "bg-brand-700 text-white"
+                      : "text-ink-800 hover:bg-cream-200"
+                  }`}
+                >
+                  <item.icon className="h-5 w-5 shrink-0" />
+                  {item.label}
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+
+        <p className="mt-auto px-3 text-xs leading-relaxed text-ink-700/50">
+          Kiteezi collection area, Kampala.
+        </p>
       </nav>
     </aside>
-  )
+  );
 }

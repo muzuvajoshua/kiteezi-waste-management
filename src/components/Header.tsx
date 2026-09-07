@@ -3,15 +3,7 @@ import { useState, useEffect } from "react";
 import { Button } from "./ui/button";
 import Link from "next/link";
 
-import {
-  Bell,
-  Leaf,
-  Menu,
-  Search,
-  Coins,
-  User,
-  ChevronDown,
-} from "lucide-react";
+import { Bell, ChevronDown, Coins, Leaf, Menu, User } from "lucide-react";
 
 import {
   DropdownMenuItem,
@@ -29,7 +21,6 @@ import {
 import { getUserBalance } from "@/modules/rewards/presentation/reward.actions";
 import toast from "react-hot-toast";
 import { actionErrorMessage } from "@/lib/action-error";
-import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { useGoogleAuth } from "@/components/GoogleAuthProvider";
 import { GoogleSignInButton } from "@/components/GoogleSignInButton";
 
@@ -56,7 +47,6 @@ export default function Header({ onMenuClick }: HeaderProps) {
   const sessionUser = user;
   const [notification, setNotification] = useState<NotificationItem[]>([]);
   const [balance, setBalance] = useState(0);
-  const isMobile = useMediaQuery("(max-width: 768px)");
 
   const loggedIn = !!user;
 
@@ -124,50 +114,51 @@ export default function Header({ onMenuClick }: HeaderProps) {
   };
 
    return (
-    <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
-      <div className="flex items-center justify-between px-4 py-2">
-        <div className="flex items-center">
-          <Button variant="ghost" size="icon" className="mr-2 md:mr-4" onClick={onMenuClick}>
+    <header className="sticky top-0 z-50 border-b border-white/10 bg-ink-900">
+      <div className="flex items-center justify-between gap-3 px-4 py-3">
+        <div className="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="icon"
+            aria-label="Toggle navigation"
+            className="text-cream-300 hover:bg-white/10 hover:text-white lg:hidden"
+            onClick={onMenuClick}
+          >
             <Menu className="h-6 w-6" />
           </Button>
-          <Link href="/" className="flex items-center">
-            <Leaf className="h-6 w-6 md:h-8 md:w-8 text-green-500 mr-1 md:mr-2" />
-            <div className="flex flex-col">
-              <span className="font-bold text-base md:text-lg text-gray-800">Kiteezi Waste Management System</span>
-              <span className="text-[8px] md:text-[10px] text-gray-500 -mt-1">ETHOnline24</span>
-            </div>
+          <Link href="/" className="flex items-center gap-2.5">
+            <Leaf className="h-7 w-7 text-brand-300" />
+            {/*
+              The subtitle here used to read "ETHOnline24" — a hackathon
+              leftover from before Web3Auth was removed, so the app announced a
+              stack it had not run on for months. The search box beside it was
+              decorative: an input wired to nothing, which is worse than no
+              search because it invites the attempt. Both gone.
+            */}
+            <span className="font-display text-lg font-bold tracking-tight text-white">
+              Kiteezi
+            </span>
           </Link>
         </div>
-        {!isMobile && (
-          <div className="flex-1 max-w-xl mx-4">
-            <div className="relative">
-              <input
-                type="text"
-                placeholder="Search..."
-                className="w-full px-4 py-2 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-green-500"
-              />
-              <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-            </div>
-          </div>
-        )}
-        <div className="flex items-center">
-          {isMobile && (
-            <Button variant="ghost" size="icon" className="mr-2">
-              <Search className="h-5 w-5" />
-            </Button>
-          )}
+
+        <div className="flex items-center gap-2">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="mr-2 relative">
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="Notifications"
+                className="relative text-cream-300 hover:bg-white/10 hover:text-white"
+              >
                 <Bell className="h-5 w-5" />
                 {notification.length > 0 && (
-                  <Badge className="absolute -top-1 -right-1 px-1 min-w-[1.2rem] h-5">
+                  <Badge className="absolute -right-1 -top-1 h-5 min-w-[1.2rem] bg-accent-500 px-1 text-white hover:bg-accent-500">
                     {notification.length}
                   </Badge>
                 )}
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-64">
+            <DropdownMenuContent align="end" className="w-72">
               {notification.length > 0 ? (
                 notification.map((notif) => (
                   <DropdownMenuItem
@@ -175,32 +166,36 @@ export default function Header({ onMenuClick }: HeaderProps) {
                     onClick={() => handleNotificationClick(notif.id)}
                   >
                     <div className="flex flex-col">
-                      <span className="font-medium">{notif.type}</span>
-                      <span className="text-sm text-gray-500">{notif.message}</span>
+                      <span className="font-medium capitalize">
+                        {notif.type.replace(/_/g, " ")}
+                      </span>
+                      <span className="text-sm text-muted-foreground">{notif.message}</span>
                     </div>
                   </DropdownMenuItem>
                 ))
               ) : (
-                <DropdownMenuItem>No new notifications</DropdownMenuItem>
+                <DropdownMenuItem disabled>No new notifications</DropdownMenuItem>
               )}
             </DropdownMenuContent>
           </DropdownMenu>
-          <div className="mr-2 md:mr-4 flex items-center bg-gray-100 rounded-full px-2 md:px-3 py-1">
-            <Coins className="h-4 w-4 md:h-5 md:w-5 mr-1 text-green-500" />
-            <span className="font-semibold text-sm md:text-base text-gray-800">
-              {balance.toFixed(2)}
+
+          <span className="flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1.5">
+            <Coins className="h-4 w-4 text-accent-500" />
+            <span className="font-display text-sm font-bold text-white">
+              {balance.toFixed(0)}
             </span>
-          </div>
+          </span>
+
           {!loggedIn ? (
             // Google inline for one-click, plus a link to the landing page's
             // sign-in card for the email/password form — that flow needs more
-            // room than the header has, and a password field in a header
-            // invites mis-typing.
+            // room than a header has, and a password field in a header invites
+            // mis-typing.
             <div className="flex items-center gap-2">
               <GoogleSignInButton />
               <Link
                 href="/#sign-in"
-                className="whitespace-nowrap text-sm font-medium text-green-700 underline hover:text-green-800"
+                className="whitespace-nowrap text-sm font-medium text-accent-500 hover:text-accent-400"
               >
                 Use email
               </Link>
@@ -208,20 +203,24 @@ export default function Header({ onMenuClick }: HeaderProps) {
           ) : (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="flex items-center">
-                  <User className="h-5 w-5 mr-1" />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label="Account"
+                  className="flex items-center text-cream-300 hover:bg-white/10 hover:text-white"
+                >
+                  <User className="mr-1 h-5 w-5" />
                   <ChevronDown className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem>
+                <DropdownMenuItem disabled className="font-medium">
                   {user?.name ?? "User"}
                 </DropdownMenuItem>
-                <DropdownMenuItem>
-                  <Link href="/settings">Profile</Link>
+                <DropdownMenuItem asChild>
+                  <Link href="/my-reports">My reports</Link>
                 </DropdownMenuItem>
-                <DropdownMenuItem>Settings</DropdownMenuItem>
-                <DropdownMenuItem onClick={() => void logout()}>Sign Out</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => void logout()}>Sign out</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           )}

@@ -1,32 +1,31 @@
-import Link from "next/link";
+import { ClipboardCheck, Coins, FileText, ShieldCheck, Truck } from "lucide-react";
+import { REPORT_STATUSES } from "@/modules/reports/domain/report";
+import { Band, Container, SectionHeading } from "@/components/ui/section";
+import { PillLink } from "@/components/ui/pill";
+import { Reveal } from "@/components/ui/reveal";
 import { HeroSignIn } from "@/components/marketing/HeroSignIn";
-import {
-  ArrowRight,
-  ClipboardCheck,
-  Coins,
-  FileText,
-  ShieldCheck,
-  Truck,
-} from "lucide-react";
 
-// KWM — the public landing page.
+// The public landing page.
 //
-// Designed against a commercial waste-management theme for its visual
-// structure (hero, numbered workflow, role cards, closing call to action) but
-// none of its content. That theme is a brochure for a fictional private
-// company: it carries "500+ happy clients", "100+ tons of waste collected",
-// "95% of collections completed on time", a street address and a support
-// inbox. Every one of those is invented, and repeating the pattern here would
-// put false claims and unreachable contact details in front of real people.
+// Rebuilt to the reference walkthrough's visual system: a cream ground, dark
+// green bands, a vivid orange accent, heavy geometric display type on tight
+// leading, generously rounded cards, and a handwritten eyebrow above every
+// heading. The palette was measured from the video frames rather than guessed
+// — see globals.css.
 //
-// So the copy below describes only what the system does, verified against the
-// code: the four workflow steps are the actual report -> review -> collect ->
-// earn path, the roles are ROLE_NAMES from the schema, and the guarantees in
-// "How it holds up" are things the test suite pins.
+// What was NOT taken from it. That theme is a brochure for a company that does
+// not exist, and it is carried by stock photography: "500+ happy clients",
+// "100+ tons of waste collected", "95% of collections completed on time", a
+// 4.9/5 rating, a team of four with names and job titles, client logos, a
+// street address and a phone number. All invented. This project has two
+// reports and one user.
 //
-// A separate component rather than markup inside the page so it renders in
-// jsdom without a request scope, and so it is measured by coverage — src/app
-// is excluded.
+// So the structure is borrowed and the content is ours: the four workflow
+// steps are the real report -> review -> collect -> earn path, the statuses
+// are the report_status enum, the roles are ROLE_NAMES, and the guarantees are
+// things the test suite pins. There is no photography at all, which is why the
+// bands alternate as strongly as they do — colour and type carry the weight
+// that photographs carry in the reference.
 
 const STEPS = [
   {
@@ -51,6 +50,22 @@ const STEPS = [
   },
 ] as const;
 
+// The six values of report_status, keyed so a status added to the enum is a
+// compile error here rather than a silently missing row. The badge colours
+// match what /my-reports already renders, so the colours someone learns on
+// this page are the ones they will see against their own reports.
+const LIFECYCLE: Record<(typeof REPORT_STATUSES)[number], { meaning: string; badge: string }> = {
+  pending: { meaning: "Filed, waiting on a supervisor.", badge: "bg-amber-100 text-amber-900" },
+  approved: { meaning: "Accepted, queued for a crew.", badge: "bg-sky-100 text-sky-900" },
+  in_progress: { meaning: "A crew is on it.", badge: "bg-indigo-100 text-indigo-900" },
+  collected: { meaning: "Cleared from the site.", badge: "bg-teal-100 text-teal-900" },
+  verified: { meaning: "Confirmed, and points awarded.", badge: "bg-brand-100 text-brand-900" },
+  rejected: {
+    meaning: "Turned down, with a reason you can read.",
+    badge: "bg-rose-100 text-rose-900",
+  },
+};
+
 const ROLES = [
   {
     name: "Residents",
@@ -70,9 +85,9 @@ const ROLES = [
   },
 ] as const;
 
-// Every claim here was checked against the code before being written. Earlier
-// drafts of three of them were wrong in the flattering direction, which is the
-// failure mode a page like this invites:
+// Every claim here was checked against the code. Earlier drafts of three were
+// wrong in the flattering direction, which is the failure mode a page like
+// this invites:
 //
 //   - "the database enforces the ledger/balance equality" — it does not. It
 //     enforces a non-negative balance. The equality is held by both writes
@@ -102,168 +117,202 @@ const GUARANTEES = [
   },
 ] as const;
 
+const formatStatus = (status: string) => status.replace(/_/g, " ");
+
 export function LandingPage() {
   return (
     <>
       {/* Hero */}
-      <section className="bg-gradient-to-b from-brand-50 to-white">
-        <div className="mx-auto grid max-w-6xl gap-12 px-6 py-20 sm:py-28 lg:grid-cols-[1.15fr_1fr] lg:items-center">
+      <section className="relative overflow-hidden bg-ink-900">
+        {/*
+          The reference sets a giant outlined word behind its hero. This is the
+          only piece of pure decoration on the page, so it is kept very low
+          contrast and hidden from assistive technology — at full strength it
+          competes with the heading, which is the opposite of the point.
+        */}
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute -left-6 bottom-0 hidden select-none font-display text-[11rem] font-extrabold leading-[0.8] tracking-tighter text-white/[0.025] xl:block"
+        >
+          RECYCLE
+        </span>
+
+        <Container className="relative grid gap-16 py-band lg:grid-cols-[1.1fr_1fr] lg:items-center lg:py-band-lg">
           <div>
-            <p className="text-sm font-medium uppercase tracking-wider text-brand-700">
-              Kampala · Kiteezi collection area
+            <p className="flex items-center gap-2 font-script text-2xl text-accent-500">
+              <svg viewBox="0 0 12 12" aria-hidden="true" className="h-3 w-3 shrink-0 fill-accent-500">
+                <path d="M6 0c.4 2.6 1.4 3.6 4 4-2.6.4-3.6 1.4-4 4-.4-2.6-1.4-3.6-4-4 2.6-.4 3.6-1.4 4-4Z" />
+              </svg>
+              Kiteezi waste management
             </p>
-            <h1 className="mt-4 text-4xl font-semibold tracking-tight text-ink-900 sm:text-5xl">
+
+            <h1 className="mt-4 font-display text-display-md font-extrabold text-white sm:text-display-lg lg:text-display-xl">
               Report waste. Watch it get collected.
             </h1>
-            <p className="mt-6 text-lg leading-relaxed text-gray-600">
-              Waste nobody reports is waste nobody collects. Kiteezi turns what
-              residents can see into a queue that crews can work — and keeps a record
-              of what happened to every report, so a site that was cleared can be told
-              apart from one that was merely noticed.
+
+            <p className="mt-6 max-w-xl text-lg leading-relaxed text-cream-300">
+              Waste nobody reports is waste nobody collects. Kiteezi turns what residents can
+              see into a queue that crews can work — and keeps a record of what happened to
+              every report, so a site that was cleared can be told apart from one that was
+              merely noticed.
             </p>
 
             <div className="mt-10 flex flex-wrap items-center gap-4">
-              <Link
-                href="/report"
-                className="inline-flex items-center gap-2 rounded-lg bg-brand-600 px-6 py-3 font-medium text-white transition-colors hover:bg-brand-700"
-              >
+              <PillLink href="/report" variant="accent" size="lg">
                 Report waste
-                <ArrowRight className="h-4 w-4" />
-              </Link>
-              <Link
-                href="#how-it-works"
-                className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-6 py-3 font-medium text-ink-900 transition-colors hover:bg-gray-50"
-              >
+              </PillLink>
+              <PillLink href="#how-it-works" variant="outline" size="lg">
                 How it works
-              </Link>
+              </PillLink>
             </div>
           </div>
 
-          {/*
-            The right column is the brand's one memorable image and the way
-            into the app at the same time: a ball folded from waste paper,
-            circled by the arrows of the recycling mark, which unfolds into
-            the sign-in card when pressed.
-
-            The facets and the loop are the same triangle at two scales, which
-            is the whole idea.
-
-            Signing in happens here rather than on a page of its own. /sign-in
-            used to sit inside the app shell, so a signed-out visitor was shown
-            a sidebar full of links they could not use in order to reach the
-            one thing they could.
-          */}
           <HeroSignIn />
-        </div>
+        </Container>
       </section>
 
       {/* How it works */}
-      <section id="how-it-works" className="scroll-mt-20 border-t border-gray-100">
-        <div className="mx-auto max-w-6xl px-6 py-20">
-          <h2 className="text-3xl font-semibold tracking-tight text-ink-900">
-            How it works
-          </h2>
-          {/*
-            No claim that the order is enforced. validateStatusTransition is
-            still a permissive pass-through (KWM-081 owns the real transition
-            table), so a collection role can in fact move a report that has
-            not been approved. Describing the intended path is honest;
-            describing it as a guarantee would not be.
-          */}
-          <p className="mt-3 max-w-2xl text-gray-600">
-            From a resident spotting waste to the points landing on their balance.
-          </p>
+      <Band id="how-it-works" tone="cream">
+        <Container>
+          <Reveal>
+            <SectionHeading
+              eyebrow="How it works"
+              title="From a resident spotting waste to points on their balance"
+              lede="Four steps. Each is a real transition in the system, and each leaves a record behind it."
+            />
+          </Reveal>
 
-          <ol className="mt-12 grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
+          <ol className="mt-16 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
             {STEPS.map((step, index) => (
-              <li key={step.title} className="relative">
-                <div className="flex items-center gap-3">
-                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-600 text-sm font-semibold text-white">
-                    {index + 1}
-                  </span>
-                  <step.icon className="h-5 w-5 text-brand-600" aria-hidden />
-                </div>
-                <h3 className="mt-4 font-semibold text-ink-900">{step.title}</h3>
-                <p className="mt-2 text-sm leading-relaxed text-gray-600">{step.body}</p>
+              <li key={step.title}>
+                <Reveal delayMs={index * 70} className="h-full">
+                  <div className="flex h-full flex-col rounded-card border border-cream-300 bg-white p-7 transition-colors hover:border-brand-300">
+                    <div className="flex items-center justify-between">
+                      {/*
+                        Numbered because this content genuinely is a sequence.
+                        Numbering an unordered set of features is the tell that
+                        habit usually is, which is why numbers appear here and
+                        nowhere else on the page.
+                      */}
+                      <span className="font-display text-3xl font-extrabold text-cream-400">
+                        {String(index + 1).padStart(2, "0")}
+                      </span>
+                      <step.icon className="h-6 w-6 text-brand-700" aria-hidden />
+                    </div>
+                    <h3 className="mt-6 font-display text-xl font-bold text-ink-900">
+                      {step.title}
+                    </h3>
+                    <p className="mt-3 text-sm leading-relaxed text-ink-700/70">{step.body}</p>
+                  </div>
+                </Reveal>
               </li>
             ))}
           </ol>
-        </div>
-      </section>
+        </Container>
+      </Band>
 
-      {/* Roles */}
-      <section id="roles" className="scroll-mt-20 bg-gray-50">
-        <div className="mx-auto max-w-6xl px-6 py-20">
-          <h2 className="text-3xl font-semibold tracking-tight text-ink-900">
-            Who uses it
-          </h2>
-          <p className="mt-3 max-w-2xl text-gray-600">
-            What you can reach depends on your role, and the rules are enforced on the
-            server rather than by hiding buttons.
-          </p>
+      {/* The report lifecycle */}
+      <Band id="lifecycle" tone="white">
+        <Container>
+          <Reveal>
+            <SectionHeading
+              eyebrow="Every report has a state"
+              title="You can always tell what happened to a report"
+              lede="The six states a report moves through, with the same colours you will see against your own reports."
+            />
+          </Reveal>
 
-          <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-            {ROLES.map((role) => (
-              <div
-                key={role.name}
-                className="rounded-xl border border-gray-200 bg-white p-6"
-              >
-                <h3 className="font-semibold text-ink-900">{role.name}</h3>
-                <p className="mt-2 text-sm leading-relaxed text-gray-600">{role.body}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Guarantees */}
-      <section className="border-t border-gray-100">
-        <div className="mx-auto max-w-6xl px-6 py-20">
-          <div className="flex items-center gap-3">
-            <ShieldCheck className="h-6 w-6 text-brand-600" aria-hidden />
-            <h2 className="text-3xl font-semibold tracking-tight text-ink-900">
-              How it holds up
-            </h2>
-          </div>
-          <p className="mt-3 max-w-2xl text-gray-600">
-            A rewards system is a system that hands out value, so the parts that could
-            be abused are the parts worth describing.
-          </p>
-
-          <dl className="mt-12 grid gap-8 sm:grid-cols-2">
-            {GUARANTEES.map((item) => (
-              <div key={item.title}>
-                <dt className="font-semibold text-ink-900">{item.title}</dt>
-                <dd className="mt-2 text-sm leading-relaxed text-gray-600">{item.body}</dd>
-              </div>
+          <dl className="mt-16 grid gap-x-12 gap-y-1 sm:grid-cols-2">
+            {REPORT_STATUSES.map((status, index) => (
+              <Reveal key={status} delayMs={index * 45}>
+                <div className="flex items-baseline gap-4 border-b border-cream-300 py-5">
+                  <dt
+                    className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold capitalize ${LIFECYCLE[status].badge}`}
+                  >
+                    {formatStatus(status)}
+                  </dt>
+                  <dd className="text-sm text-ink-700/75">{LIFECYCLE[status].meaning}</dd>
+                </div>
+              </Reveal>
             ))}
           </dl>
-        </div>
-      </section>
+        </Container>
+      </Band>
 
-      {/* Closing call to action */}
-      <section className="bg-ink-900">
-        <div className="mx-auto max-w-6xl px-6 py-16">
-          <div className="flex flex-col justify-between gap-8 lg:flex-row lg:items-center">
-            <div>
-              <h2 className="text-3xl font-semibold tracking-tight text-white">
-                Seen waste that needs collecting?
-              </h2>
-              <p className="mt-3 max-w-xl text-gray-300">
-                Sign in with Google or an email address. Reporting takes a location, a
-                waste type and a rough quantity.
-              </p>
-            </div>
-            <Link
-              href="#sign-in"
-              className="inline-flex shrink-0 items-center gap-2 rounded-lg bg-brand-500 px-6 py-3 font-medium text-white transition-colors hover:bg-brand-600"
-            >
-              Get started
-              <ArrowRight className="h-4 w-4" />
-            </Link>
+      {/* Who uses it */}
+      <Band id="roles" tone="cream">
+        <Container>
+          <Reveal>
+            <SectionHeading
+              eyebrow="Who uses it"
+              title="Four kinds of people, one record"
+              lede="What you can reach depends on your role, and the rules are enforced on the server rather than by hiding buttons."
+            />
+          </Reveal>
+
+          <div className="mt-16 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+            {ROLES.map((role, index) => (
+              <Reveal key={role.name} delayMs={index * 70} className="h-full">
+                <div className="flex h-full flex-col rounded-card bg-ink-900 p-7 text-cream-300">
+                  <h3 className="font-display text-xl font-bold text-white">{role.name}</h3>
+                  <p className="mt-3 flex-1 text-sm leading-relaxed">{role.body}</p>
+                  <span aria-hidden="true" className="mt-6 h-1 w-10 rounded-full bg-accent-500" />
+                </div>
+              </Reveal>
+            ))}
           </div>
-        </div>
-      </section>
+        </Container>
+      </Band>
+
+      {/* How it holds up */}
+      <Band id="trust" tone="ink">
+        <Container>
+          <Reveal>
+            <div className="flex items-start gap-4">
+              <ShieldCheck className="mt-2 h-8 w-8 shrink-0 text-accent-500" aria-hidden />
+              <SectionHeading
+                eyebrow="How it holds up"
+                title="A system that hands out value is worth explaining"
+                lede="These are the parts that could be abused, and what stops them."
+                tone="dark"
+              />
+            </div>
+          </Reveal>
+
+          <dl className="mt-16 grid gap-10 sm:grid-cols-2">
+            {GUARANTEES.map((item, index) => (
+              <Reveal key={item.title} delayMs={index * 60}>
+                <div className="border-l-2 border-accent-500/40 pl-6">
+                  <dt className="font-display text-lg font-bold text-white">{item.title}</dt>
+                  <dd className="mt-3 text-sm leading-relaxed text-cream-300/85">{item.body}</dd>
+                </div>
+              </Reveal>
+            ))}
+          </dl>
+        </Container>
+      </Band>
+
+      {/* Closing */}
+      <Band tone="brand">
+        <Container>
+          <Reveal>
+            <div className="flex flex-col items-start justify-between gap-8 lg:flex-row lg:items-center">
+              <div>
+                <h2 className="max-w-xl font-display text-display-sm font-extrabold text-white sm:text-display-md">
+                  Seen waste that needs collecting?
+                </h2>
+                <p className="mt-4 max-w-xl text-lg text-brand-100">
+                  Sign in with Google or an email address. Reporting takes a location, a waste
+                  type and a rough quantity.
+                </p>
+              </div>
+              <PillLink href="#sign-in" variant="accent" size="lg" className="shrink-0">
+                Get started
+              </PillLink>
+            </div>
+          </Reveal>
+        </Container>
+      </Band>
     </>
   );
 }

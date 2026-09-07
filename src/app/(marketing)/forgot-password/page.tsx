@@ -10,13 +10,13 @@ export const metadata: Metadata = {
 export default function ForgotPasswordPage() {
   return (
     <div className="mx-auto flex max-w-md flex-col items-center py-8">
-      <h1 className="text-2xl font-semibold text-gray-900">Forgot your password?</h1>
-      <p className="mb-6 mt-1 text-center text-gray-600">
+      <h1 className="font-display text-display-sm font-extrabold text-ink-900">Forgot your password?</h1>
+      <p className="mb-6 mt-1 text-center text-ink-700/70">
         Enter your email address and we&apos;ll send you a link to set a new one.
       </p>
       <ForgotPasswordForm />
-      <p className="mt-6 text-sm text-gray-600">
-        <Link href="/#sign-in" className="font-medium text-green-700 underline">
+      <p className="mt-6 text-sm text-ink-700/70">
+        <Link href="/#sign-in" className="font-medium text-brand-700 underline">
           Back to sign in
         </Link>
       </p>
